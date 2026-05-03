@@ -1,0 +1,77 @@
+"""Generate a Markdown inspection report before listings go live."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+
+from .models import Item
+
+
+def generate_report(items: list[Item], output_dir: Path) -> Path:
+    """Write a Markdown report to output_dir and return its path."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    report_path = output_dir / f"snaplist_report_{timestamp}.md"
+
+    lines: list[str] = [
+        "# Auction Buddy — Inspection Report",
+        "",
+        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}  ",
+        f"Items: {len(items)}",
+        "",
+        "---",
+        "",
+    ]
+
+    for item in items:
+        price = item.price_info
+        price_str = f"**{price.suggested_price:.2f} {price.currency}**" if price else "_not determined_"
+        range_str = f"(range {price.min_price:.2f}–{price.max_price:.2f} {price.currency})" if price else ""
+
+        lines += [
+            f"## {item.name}",
+            "",
+            f"| Field | Value |",
+            f"|---|---|",
+            f"| **ID** | `{item.id}` |",
+            f"| **Title (DE)** | {item.title_de or '—'} |",
+            f"| **Condition** | {item.condition.value.replace('_', ' ').title()} ({item.condition.to_german()}) |",
+            f"| **Category** | {item.category or '—'} |",
+            f"| **Brand / Model** | {item.brand or '—'} / {item.model or '—'} |",
+            f"| **Suggested price** | {price_str} {range_str} |",
+            "",
+        ]
+
+        if item.description:
+            lines += [
+                "### Beschreibung",
+                "",
+                item.description,
+                "",
+            ]
+
+        if price and price.reasoning:
+            lines += [
+                "### Preis-Begründung",
+                "",
+                price.reasoning,
+                "",
+            ]
+
+        if item.tags:
+            lines += [
+                "### Tags",
+                "",
+                ", ".join(f"`{t}`" for t in item.tags),
+                "",
+            ]
+
+        lines += ["### Fotos", ""]
+        for photo in item.photos:
+            display = photo.enhanced_path or photo.original_path
+            lines.append(f"![{photo.original_path.name}]({display})")
+        lines += ["", "---", ""]
+
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+    return report_path
