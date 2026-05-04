@@ -70,7 +70,11 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
         lines += ["### Fotos", ""]
         for photo in item.photos:
             display = photo.enhanced_path or photo.original_path
-            lines.append(f"![{photo.original_path.name}]({display})")
+            try:
+                rel = display.relative_to(output_dir)
+            except ValueError:
+                rel = display
+            lines.append(f"![{photo.original_path.name}]({rel})")
         lines += ["", "---", ""]
 
     report_path.write_text("\n".join(lines), encoding="utf-8")

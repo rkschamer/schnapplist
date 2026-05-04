@@ -152,41 +152,201 @@ def _merge_groups_across_batches(
 
 
 # ---------------------------------------------------------------------------
+# Redundancy filtering
+# ---------------------------------------------------------------------------
+
+_FILTER_SYSTEM = (
+    "You are curating product photos for a marketplace listing. "
+    "Identify photos that are near-duplicates (same angle, same framing) and should be removed. "
+    "Keep the sharpest / best-lit representative when there are duplicates. "
+    "Always keep at least one photo. "
+    'Reply with ONLY a JSON object: {"keep": [0, 2, 3]} using 0-based indices.'
+)
+
+
+def filter_redundant_photos(photos: list[Path], client: LLMClient) -> list[Path]:
+    """Ask the LLM to drop near-duplicate photos. Returns a filtered list."""
+    if len(photos) <= 1:
+        return photos
+
+    content: list[JsonDict] = []
+    for i, photo in enumerate(photos):
+        content.append(_build_image_block(photo))
+        content.append({"type": "text", "text": f"[Photo {i}: {photo.name}]"})
+    content.append({"type": "text", "text": "Which photos should be kept? Remove near-duplicates."})
+
+    response = client.messages_create(
+        max_tokens=128,
+        system=_FILTER_SYSTEM,
+        messages=[{"role": "user", "content": content}],
+    )
+
+    text = response.content[0].text
+    start, end = text.find("{"), text.rfind("}") + 1
+    if start == -1 or end <= start:
+        return photos
+    try:
+        parsed = cast(JsonDict, json.loads(text[start:end]))
+        indices = sorted({int(i) for i in parsed["keep"] if 0 <= int(i) < len(photos)})
+        return [photos[i] for i in indices] if indices else photos
+    except (ValueError, KeyError):
+        return photos
+
+
+# ---------------------------------------------------------------------------
 # Enhancement
 # ---------------------------------------------------------------------------
 
-def enhance_photo(source: Path, output_dir: Path) -> Path:
-    """Enhance brightness/contrast/sharpness and crop to 4:3. Returns output path."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"enhanced_{source.stem}.jpg"
+_ENHANCE_SYSTEM = (
+    "You are an expert photo editor. Analyse the product photo and return ONLY a JSON "
+    "object with the optimal PIL enhancement parameters to make it look clean, bright, "
+    "and professional for a second-hand marketplace listing. "
+    "Keys and allowed ranges:\n"
+    "  autocontrast_cutoff: 0–5 (percent of darkest/brightest pixels to ignore)\n"
+    "  brightness: 0.7–1.6 (1.0 = unchanged)\n"
+    "  contrast: 0.7–1.6 (1.0 = unchanged)\n"
+    "  sharpness: 0.5–2.5 (1.0 = unchanged)\n"
+    '  target_ratio: one of "4:3" (landscape), "3:4" (portrait), "1:1" (square), "keep" (no crop)\n'
+    "Choose target_ratio to best frame the subject without cutting off any part of the item. "
+    "Reply with ONLY the JSON object, no prose."
+)
 
+_FEEDBACK_SYSTEM = (
+    "You are reviewing an enhanced product photo for a second-hand marketplace listing. "
+    "You will see the original photo, then the current enhanced version.\n"
+    "Check all three criteria:\n"
+    "  1. Item fully visible — nothing cut off by the crop\n"
+    "  2. Lighting correct — not too dark or blown out\n"
+    "  3. Crop/orientation appropriate — best ratio for this subject\n\n"
+    'If all criteria are met, return {"accepted": true}.\n'
+    'If any criterion fails, return {"accepted": false} together with corrected params:\n'
+    "  autocontrast_cutoff (0–5), brightness (0.7–1.6), contrast (0.7–1.6),\n"
+    '  sharpness (0.5–2.5), target_ratio ("4:3"|"3:4"|"1:1"|"keep").\n'
+    "Reply with ONLY the JSON object, no prose."
+)
+
+_ENHANCE_DEFAULTS: JsonDict = {
+    "autocontrast_cutoff": 1,
+    "brightness": 1.05,
+    "contrast": 1.1,
+    "sharpness": 1.3,
+    "target_ratio": "4:3",
+}
+
+_MAX_ENHANCE_ITERATIONS = 3
+
+_PARAM_RANGES: dict[str, tuple[float, float]] = {
+    "autocontrast_cutoff": (0, 5),
+    "brightness": (0.7, 1.6),
+    "contrast": (0.7, 1.6),
+    "sharpness": (0.5, 2.5),
+}
+
+
+def _parse_params(raw: JsonDict, base: JsonDict) -> JsonDict:
+    params = dict(base)
+    for key, (lo, hi) in _PARAM_RANGES.items():
+        if key in raw:
+            params[key] = max(lo, min(hi, float(raw[key])))
+    if raw.get("target_ratio") in ("4:3", "3:4", "1:1", "keep"):
+        params["target_ratio"] = raw["target_ratio"]
+    return params
+
+
+def _get_enhancement_params(source: Path, client: LLMClient) -> JsonDict:
+    image_block = _build_image_block(source)
+    response = client.messages_create(
+        max_tokens=256,
+        system=_ENHANCE_SYSTEM,
+        messages=[{"role": "user", "content": [
+            image_block,
+            {"type": "text", "text": "What are the best enhancement parameters for this photo?"},
+        ]}],
+    )
+    text = response.content[0].text
+    start, end = text.find("{"), text.rfind("}") + 1
+    if start == -1 or end <= start:
+        return dict(_ENHANCE_DEFAULTS)
+    try:
+        return _parse_params(cast(JsonDict, json.loads(text[start:end])), _ENHANCE_DEFAULTS)
+    except (ValueError, KeyError):
+        return dict(_ENHANCE_DEFAULTS)
+
+
+def _get_enhancement_feedback(
+    source: Path, enhanced: Path, current_params: JsonDict, client: LLMClient
+) -> JsonDict | None:
+    """Show original + enhanced to the LLM. Returns updated params, or None if accepted."""
+    content: list[JsonDict] = [
+        _build_image_block(source),
+        {"type": "text", "text": "[Original photo]"},
+        _build_image_block(enhanced),
+        {"type": "text", "text": "[Current enhanced version — evaluate this]"},
+    ]
+    response = client.messages_create(
+        max_tokens=256,
+        system=_FEEDBACK_SYSTEM,
+        messages=[{"role": "user", "content": content}],
+    )
+    text = response.content[0].text
+    start, end = text.find("{"), text.rfind("}") + 1
+    if start == -1 or end <= start:
+        return None
+    try:
+        raw = cast(JsonDict, json.loads(text[start:end]))
+        if raw.get("accepted"):
+            return None
+        return _parse_params(raw, current_params)
+    except (ValueError, KeyError):
+        return None
+
+
+def _apply_enhancement(source: Path, params: JsonDict) -> "Image.Image":
     img: Image.Image = Image.open(source)
-    if img.mode not in ("RGB", "RGBA"):
-        img = img.convert("RGB")
-    elif img.mode == "RGBA":
+    if img.mode == "RGBA":
         background = Image.new("RGB", img.size, (255, 255, 255))
         background.paste(img, mask=img.split()[3])
         img = background
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
 
-    # Auto-contrast (ignore top/bottom 1% outliers)
-    img = ImageOps.autocontrast(img, cutoff=1)
+    img = ImageOps.autocontrast(img, cutoff=params["autocontrast_cutoff"])
+    img = ImageEnhance.Brightness(img).enhance(params["brightness"])
+    img = ImageEnhance.Contrast(img).enhance(params["contrast"])
+    img = ImageEnhance.Sharpness(img).enhance(params["sharpness"])
 
-    img = ImageEnhance.Brightness(img).enhance(1.05)
-    img = ImageEnhance.Contrast(img).enhance(1.1)
-    img = ImageEnhance.Sharpness(img).enhance(1.3)
-
-    # Crop to 4:3
-    w, h = img.size
-    target = 4 / 3
-    if w / h > target:
-        new_w = int(h * target)
-        img = img.crop(((w - new_w) // 2, 0, (w - new_w) // 2 + new_w, h))
-    elif w / h < target:
-        new_h = int(w / target)
-        img = img.crop((0, (h - new_h) // 2, w, (h - new_h) // 2 + new_h))
+    ratio_map = {"4:3": 4 / 3, "3:4": 3 / 4, "1:1": 1.0}
+    target = ratio_map.get(params.get("target_ratio", "4:3"))
+    if target is not None:
+        w, h = img.size
+        if w / h > target:
+            new_w = int(h * target)
+            img = img.crop(((w - new_w) // 2, 0, (w - new_w) // 2 + new_w, h))
+        elif w / h < target:
+            new_h = int(w / target)
+            img = img.crop((0, (h - new_h) // 2, w, (h - new_h) // 2 + new_h))
 
     if img.width > ENHANCED_IMAGE_MAX_WIDTH:
         img.thumbnail((ENHANCED_IMAGE_MAX_WIDTH, ENHANCED_IMAGE_MAX_WIDTH), Image.Resampling.LANCZOS)
+    return img
 
-    img.save(output_path, "JPEG", quality=PHOTO_QUALITY, optimize=True)
+
+def enhance_photo(source: Path, output_dir: Path, client: LLMClient | None = None) -> Path:
+    """Iteratively enhance a photo using an LLM feedback loop. Returns output path."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"enhanced_{source.stem}.jpg"
+
+    params = _get_enhancement_params(source, client) if client is not None else dict(_ENHANCE_DEFAULTS)
+
+    for iteration in range(_MAX_ENHANCE_ITERATIONS):
+        _apply_enhancement(source, params).save(output_path, "JPEG", quality=PHOTO_QUALITY, optimize=True)
+
+        if client is None or iteration == _MAX_ENHANCE_ITERATIONS - 1:
+            break
+
+        updated = _get_enhancement_feedback(source, output_path, params, client)
+        if updated is None:
+            break
+        params = updated
+
     return output_path

@@ -84,7 +84,7 @@ def process(
     from .config import CLAUDE_MODEL, OLLAMA_HOST, OLLAMA_MODEL
     from .item_analyzer import analyze_item, build_item
     from .llm import LLMClient
-    from .photo_processor import enhance_photo, group_photos_by_item, load_photos
+    from .photo_processor import enhance_photo, filter_redundant_photos, group_photos_by_item, load_photos
     from .price_researcher import research_price
     from .report_generator import generate_report
 
@@ -123,11 +123,16 @@ def process(
     for idx, group_photos in enumerate(groups, 1):
         console.rule(f"Item {idx}/{len(groups)}")
 
-        # 3. Enhance photos
+        # 3. Filter redundant photos
+        if len(group_photos) > 1:
+            with _spinner("  Filtering redundant photos…"):
+                group_photos = filter_redundant_photos(group_photos, client)
+
+        # 4. Enhance photos
         enhanced_paths = []
         for photo in group_photos:
             with _spinner(f"  Enhancing [cyan]{photo.name}[/cyan]…"):
-                enhanced_paths.append(enhance_photo(photo, enhanced_root))
+                enhanced_paths.append(enhance_photo(photo, enhanced_root, client))
 
         # 4. Analyse item
         with _spinner("  Analysing item with Claude…"):
