@@ -288,5 +288,4 @@ def _spinner(msg: str):
 
 def _item_to_dict(item) -> dict:
     """Pydantic model → JSON-serialisable dict."""
-    from .models import Item
     return json.loads(item.model_dump_json())
