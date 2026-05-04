@@ -82,11 +82,8 @@ def process(
 ) -> None:
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
     from .config import CLAUDE_MODEL, OLLAMA_HOST, OLLAMA_MODEL
-    from .item_analyzer import analyze_item, build_item
     from .llm import LLMClient
-    from .photo_processor import enhance_photo, filter_redundant_photos, group_photos_by_item, load_photos
-    from .price_researcher import research_price
-    from .report_generator import generate_report
+    from .orchestration import ProcessOrchestrator
 
     if llm_provider == "anthropic":
         api_key = _require_anthropic_key()
@@ -98,75 +95,44 @@ def process(
         client = LLMClient("ollama", model, ollama_host=host)
         console.print(f"Using Ollama [bold]{model}[/bold] at [cyan]{host}[/cyan]")
 
-    # 1. Scan folder
-    with _spinner("Scanning photos…") as _:
-        photos = load_photos(photos_dir)
+    orchestrator = ProcessOrchestrator(client)
+    result = orchestrator.run(
+        photos_dir=photos_dir,
+        output_dir=output_dir,
+        single_item=single_item,
+    )
 
-    if not photos:
+    if result.state.total_photos == 0:
         console.print("[yellow]No supported photos found in directory.[/yellow]")
         return
 
-    console.print(f"Found [bold]{len(photos)}[/bold] photo(s)")
+    console.print(f"Found [bold]{result.state.total_photos}[/bold] photo(s)")
 
-    # 2. Group by item
     if single_item:
-        groups = [photos]
-        console.print(f"Using all [bold]{len(photos)}[/bold] photo(s) as one item (--single-item)")
-    else:
-        with _spinner("Grouping photos by item (Claude vision)…"):
-            groups = group_photos_by_item(photos, client)
-        console.print(f"Identified [bold]{len(groups)}[/bold] item(s)")
-
-    items = []
-    enhanced_root = output_dir / "enhanced"
-
-    for idx, group_photos in enumerate(groups, 1):
-        console.rule(f"Item {idx}/{len(groups)}")
-
-        # 3. Filter redundant photos
-        if len(group_photos) > 1:
-            with _spinner("  Filtering redundant photos…"):
-                group_photos = filter_redundant_photos(group_photos, client)
-
-        # 4. Enhance photos
-        enhanced_paths = []
-        for photo in group_photos:
-            with _spinner(f"  Enhancing [cyan]{photo.name}[/cyan]…"):
-                enhanced_paths.append(enhance_photo(photo, enhanced_root, client))
-
-        # 4. Analyse item
-        with _spinner("  Analysing item with Claude…"):
-            analysis = analyze_item(group_photos, client)
-
-        name = analysis.get("name", f"Item {idx}")
-        condition = analysis.get("condition", "good")
-        keywords = analysis.get("keywords") or [name]
-
-        console.print(f"  [bold]{name}[/bold] — condition: [italic]{condition}[/italic]")
-
-        # 5. Price research
-        with _spinner("  Researching prices…"):
-            price_info = research_price(keywords, condition, client)
-
         console.print(
-            f"  Price: [green]{price_info.suggested_price:.2f} EUR[/green] "
-            f"({price_info.min_price:.2f}–{price_info.max_price:.2f})"
+            f"Using all [bold]{result.state.total_photos}[/bold] photo(s) as one item (--single-item)"
         )
+    else:
+        console.print(f"Identified [bold]{result.state.total_groups}[/bold] item(s)")
 
-        item = build_item(analysis, group_photos, enhanced_paths)
-        item.price_info = price_info
-        items.append(item)
+    for idx, item in enumerate(result.items, 1):
+        console.rule(f"Item {idx}/{len(result.items)}")
+        console.print(
+            f"  [bold]{item.name}[/bold] — condition: [italic]{item.condition.value}[/italic]"
+        )
+        if item.price_info:
+            console.print(
+                f"  Price: [green]{item.price_info.suggested_price:.2f} EUR[/green] "
+                f"({item.price_info.min_price:.2f}–{item.price_info.max_price:.2f})"
+            )
 
-    # 6. Write report
-    report_path = generate_report(items, output_dir)
+    report_path = result.report_path
+    state_file = result.state_file
+    if report_path is None or state_file is None:
+        console.print("[red]Processing did not produce output files.[/red]")
+        sys.exit(1)
+
     console.print(f"\n[bold green]Report:[/bold green] {report_path}")
-
-    # Persist state for the post command
-    state_file = output_dir / "items.json"
-    state_file.write_text(
-        json.dumps([_item_to_dict(i) for i in items], indent=2, default=str),
-        encoding="utf-8",
-    )
     console.print(f"[bold green]State:[/bold green]  {state_file}")
     console.print(
         "\nReview the report, then run [bold]auction-buddy post[/bold] to create listings."

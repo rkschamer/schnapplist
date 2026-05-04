@@ -32,8 +32,8 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
         lines += [
             f"## {item.name}",
             "",
-            f"| Field | Value |",
-            f"|---|---|",
+            "| Field | Value |",
+            "|---|---|",
             f"| **ID** | `{item.id}` |",
             f"| **Title (DE)** | {item.title_de or '—'} |",
             f"| **Condition** | {item.condition.value.replace('_', ' ').title()} ({item.condition.to_german()}) |",
