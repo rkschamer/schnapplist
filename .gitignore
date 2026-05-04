@@ -1,0 +1,23 @@
+# Environment
+.env
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.Python
+
+# Build / dist
+*.egg-info/
+dist/
+build/
+
+# Output & user data
+output/
+
