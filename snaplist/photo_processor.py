@@ -52,8 +52,10 @@ def _group_batch(batch: list[Path], client: anthropic.Anthropic) -> list[list[in
     content.append({
         "type": "text",
         "text": (
-            "Group these photos by physical item. Photos showing the same object from "
-            "different angles, or different parts of the same item, belong together.\n\n"
+            "Group these photos by physical item. Be conservative: photos of the same "
+            "product—even from different angles, showing different sides, or displaying "
+            "individual pieces of a set—belong in ONE group. Only create separate groups "
+            "when photos clearly show completely different, unrelated objects.\n\n"
             "Reply with ONLY a JSON object — no prose:\n"
             '{"groups": [[0,1,2],[3,4],[5]]}\n\n'
             "Every photo index must appear in exactly one group."
