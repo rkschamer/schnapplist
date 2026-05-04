@@ -1,7 +1,7 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: snaplist-ollama
+    container_name: schnapplist-ollama
     restart: unless-stopped
     ports:
       - "11434:11434"
@@ -15,7 +15,7 @@ services:
 
   ollama-model-pull:
     image: curlimages/curl:latest
-    container_name: snaplist-ollama-model-pull
+    container_name: schnapplist-ollama-model-pull
     restart: "no"
     depends_on:
       ollama:

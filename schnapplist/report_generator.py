@@ -12,7 +12,7 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
     """Write a Markdown report to output_dir and return its path."""
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    report_path = output_dir / f"snaplist_report_{timestamp}.md"
+    report_path = output_dir / f"schnapplist_report_{timestamp}.md"
 
     lines: list[str] = [
         "# Auction Buddy — Inspection Report",

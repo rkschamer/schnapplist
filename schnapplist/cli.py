@@ -1,4 +1,4 @@
-"""CLI entry point — snaplist."""
+"""CLI entry point — schnapplist."""
 
 from __future__ import annotations
 

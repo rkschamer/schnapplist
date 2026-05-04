@@ -1,4 +1,4 @@
-# Snaplist
+# Schnapplist
 
 AI-powered CLI that turns a folder of photos into ready-to-post listings on [Kleinanzeigen.de](https://www.kleinanzeigen.de) and [eBay.de](https://www.ebay.de).
 
@@ -58,13 +58,13 @@ docker compose --env-file ollama.env -f docker-compose.ollama.yml -f docker-comp
 Pass `--llm-provider ollama` to the `process` command:
 
 ```bash
-uv run snaplist process --photos-dir ./photos --llm-provider ollama
+uv run schnapplist process --photos-dir ./photos --llm-provider ollama
 ```
 
 The model and host default to `$OLLAMA_MODEL` / `$OLLAMA_HOST` from your env file, or can be overridden per run:
 
 ```bash
-uv run snaplist process --photos-dir ./photos \
+uv run schnapplist process --photos-dir ./photos \
   --llm-provider ollama \
   --llm-model llava:13b \
   --ollama-host http://localhost:11434
@@ -75,8 +75,8 @@ uv run snaplist process --photos-dir ./photos \
 ## Installation
 
 ```bash
-git clone https://github.com/yourname/snaplist
-cd snaplist
+git clone https://github.com/yourname/schnapplist
+cd schnapplist
 uv sync
 ```
 
@@ -111,7 +111,7 @@ cp .env.example .env
 Drop all photos (any mix of items) into a single folder, then run:
 
 ```bash
-uv run snaplist process --photos-dir ./photos
+uv run schnapplist process --photos-dir ./photos
 ```
 
 What happens:
@@ -120,11 +120,11 @@ What happens:
 2. **Enhancement** — Each photo is auto-levelled, contrast-boosted, sharpened, and cropped to 4:3 at up to 1200 px wide. Enhanced copies land in `output/enhanced/`.
 3. **Item analysis** — Claude identifies the item (brand, model, condition) and writes a German title and description ready for pasting into a listing.
 4. **Price research** — DuckDuckGo searches Kleinanzeigen and eBay.de for comparable listings. Claude reads the results and suggests a price with a min/max range.
-5. **Report** — A Markdown file `output/snaplist_report_<timestamp>.md` is written with all items, photos, prices, and descriptions for your review.
+5. **Report** — A Markdown file `output/schnapplist_report_<timestamp>.md` is written with all items, photos, prices, and descriptions for your review.
 
 ### Step 2 — Review the report
 
-Open `output/snaplist_report_*.md` in any Markdown viewer. Check:
+Open `output/schnapplist_report_*.md` in any Markdown viewer. Check:
 
 - Item identification is correct
 - German title and description read well
@@ -137,11 +137,11 @@ Edit `output/items.json` directly if you want to tweak a title, description, or 
 
 ```bash
 # See all processed items and their IDs
-uv run snaplist list
+uv run schnapplist list
 
 # Post a specific item (add --dry-run to preview without posting)
-uv run snaplist post --item-id <id> --provider kleinanzeigen
-uv run snaplist post --item-id <id> --provider ebay
+uv run schnapplist post --item-id <id> --provider kleinanzeigen
+uv run schnapplist post --item-id <id> --provider ebay
 ```
 
 The `post` command marks the item as approved in `items.json` after a successful post.
@@ -149,9 +149,9 @@ The `post` command marks the item as approved in `items.json` after a successful
 ## Commands
 
 ```
-snaplist process   Analyse photos and write inspection report
-snaplist list      Show all processed items
-snaplist post      Post an item to a marketplace
+schnapplist process   Analyse photos and write inspection report
+schnapplist list      Show all processed items
+schnapplist post      Post an item to a marketplace
 ```
 
 Run any command with `--help` for full option details.
@@ -168,7 +168,7 @@ Uses the [eBay Trading API](https://developer.ebay.com/api-docs/user-guides/stat
 
 ### Adding a new provider
 
-Create a class in `snaplist/providers/` that extends `BaseProvider`, implement `is_available()` and `post_listing(item) -> str`, then register it in `snaplist/providers/__init__.py`:
+Create a class in `schnapplist/providers/` that extends `BaseProvider`, implement `is_available()` and `post_listing(item) -> str`, then register it in `schnapplist/providers/__init__.py`:
 
 ```python
 from .myprovider import MyProvider
@@ -182,7 +182,7 @@ PROVIDERS = {
 ## Project layout
 
 ```
-snaplist/
+schnapplist/
 ├── cli.py               Entry point (Click commands)
 ├── config.py            Environment-based configuration
 ├── models.py            Pydantic data models (Item, Photo, PriceInfo)
