@@ -49,7 +49,13 @@ def main() -> None:
     show_default=True,
     help="Where to save enhanced photos and the report.",
 )
-def process(photos_dir: Path, output_dir: Path) -> None:
+@click.option(
+    "--single-item", "-s",
+    is_flag=True,
+    default=False,
+    help="Treat all photos as one item — skips AI grouping.",
+)
+def process(photos_dir: Path, output_dir: Path, single_item: bool) -> None:
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
     import anthropic
 
@@ -72,10 +78,13 @@ def process(photos_dir: Path, output_dir: Path) -> None:
     console.print(f"Found [bold]{len(photos)}[/bold] photo(s)")
 
     # 2. Group by item
-    with _spinner("Grouping photos by item (Claude vision)…"):
-        groups = group_photos_by_item(photos, client)
-
-    console.print(f"Identified [bold]{len(groups)}[/bold] item(s)")
+    if single_item:
+        groups = [photos]
+        console.print(f"Using all [bold]{len(photos)}[/bold] photo(s) as one item (--single-item)")
+    else:
+        with _spinner("Grouping photos by item (Claude vision)…"):
+            groups = group_photos_by_item(photos, client)
+        console.print(f"Identified [bold]{len(groups)}[/bold] item(s)")
 
     items = []
     enhanced_root = output_dir / "enhanced"
