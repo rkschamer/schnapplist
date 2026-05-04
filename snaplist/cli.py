@@ -15,7 +15,7 @@ from rich.table import Table
 console = Console()
 
 
-def _require_api_key() -> str:
+def _require_anthropic_key() -> str:
     key = os.getenv("ANTHROPIC_API_KEY", "")
     if not key:
         console.print(
@@ -55,17 +55,48 @@ def main() -> None:
     default=False,
     help="Treat all photos as one item — skips AI grouping.",
 )
-def process(photos_dir: Path, output_dir: Path, single_item: bool) -> None:
+@click.option(
+    "--llm-provider",
+    default="anthropic",
+    show_default=True,
+    type=click.Choice(["anthropic", "ollama"]),
+    help="LLM backend to use for analysis.",
+)
+@click.option(
+    "--llm-model",
+    default=None,
+    help="Model name (default: claude-sonnet-4-6 for Anthropic, $OLLAMA_MODEL or qwen3:14b for Ollama).",
+)
+@click.option(
+    "--ollama-host",
+    default=None,
+    help="Ollama API base URL (default: $OLLAMA_HOST or http://localhost:11434).",
+)
+def process(
+    photos_dir: Path,
+    output_dir: Path,
+    single_item: bool,
+    llm_provider: str,
+    llm_model: str | None,
+    ollama_host: str | None,
+) -> None:
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
-    import anthropic
-
+    from .config import CLAUDE_MODEL, OLLAMA_HOST, OLLAMA_MODEL
     from .item_analyzer import analyze_item, build_item
+    from .llm import LLMClient
     from .photo_processor import enhance_photo, group_photos_by_item, load_photos
     from .price_researcher import research_price
     from .report_generator import generate_report
 
-    api_key = _require_api_key()
-    client = anthropic.Anthropic(api_key=api_key)
+    if llm_provider == "anthropic":
+        api_key = _require_anthropic_key()
+        model = llm_model or CLAUDE_MODEL
+        client = LLMClient("anthropic", model, api_key=api_key)
+    else:
+        model = llm_model or OLLAMA_MODEL
+        host = ollama_host or OLLAMA_HOST
+        client = LLMClient("ollama", model, ollama_host=host)
+        console.print(f"Using Ollama [bold]{model}[/bold] at [cyan]{host}[/cyan]")
 
     # 1. Scan folder
     with _spinner("Scanning photos…") as _:

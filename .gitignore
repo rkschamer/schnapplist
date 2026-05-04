@@ -20,4 +20,6 @@ build/
 
 # Output & user data
 output/
-
+ollama_data/
+.DS_Store
+*.log

@@ -6,11 +6,12 @@ import base64
 import io
 import json
 from pathlib import Path
+from typing import Any, cast
 
-import anthropic
 from PIL import Image
 
-from .config import API_IMAGE_MAX_PX, CLAUDE_MODEL
+from .config import API_IMAGE_MAX_PX
+from .llm import LLMClient
 from .models import Item, ItemCondition, Photo
 
 _SYSTEM_PROMPT = """\
@@ -20,17 +21,20 @@ and judge fair market condition.\
 """
 
 
+JsonDict = dict[str, Any]
+
+
 def _encode(path: Path) -> tuple[str, str]:
     img = Image.open(path).convert("RGB")
-    img.thumbnail((API_IMAGE_MAX_PX, API_IMAGE_MAX_PX), Image.LANCZOS)
+    img.thumbnail((API_IMAGE_MAX_PX, API_IMAGE_MAX_PX), Image.Resampling.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=80)
     return base64.standard_b64encode(buf.getvalue()).decode(), "image/jpeg"
 
 
-def analyze_item(photos: list[Path], client: anthropic.Anthropic) -> dict:
+def analyze_item(photos: list[Path], client: LLMClient) -> JsonDict:
     """Return a dict with item metadata derived from the provided photos."""
-    content: list[dict] = []
+    content: list[JsonDict] = []
     for photo in photos:
         data, media_type = _encode(photo)
         content.append({"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}})
@@ -57,8 +61,7 @@ def analyze_item(photos: list[Path], client: anthropic.Anthropic) -> dict:
         ),
     })
 
-    response = client.messages.create(
-        model=CLAUDE_MODEL,
+    response = client.messages_create(
         max_tokens=1024,
         system=[
             {
@@ -72,10 +75,10 @@ def analyze_item(photos: list[Path], client: anthropic.Anthropic) -> dict:
 
     text = response.content[0].text
     start, end = text.find("{"), text.rfind("}") + 1
-    return json.loads(text[start:end])
+    return cast(JsonDict, json.loads(text[start:end]))
 
 
-def build_item(analysis: dict, photos: list[Path], enhanced_paths: list[Path]) -> Item:
+def build_item(analysis: JsonDict, photos: list[Path], enhanced_paths: list[Path]) -> Item:
     """Construct an Item from raw analysis dict and photo paths."""
     photo_models = [
         Photo(original_path=orig, enhanced_path=enh)

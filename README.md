@@ -12,6 +12,66 @@ photos/  →  group by item  →  enhance  →  identify + price  →  report.md
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - An [Anthropic API key](https://console.anthropic.com/) (Claude is used for vision, item analysis, and pricing)
 
+## Local Open-Weight LLM (Ollama)
+
+For lower running costs, you can run Ollama locally.
+
+### Mac (Apple Silicon)
+
+Run Ollama natively — Docker on macOS cannot access the Metal GPU, so a containerised Ollama runs CPU-only and is unusably slow. The native install uses Metal automatically:
+
+```bash
+brew install ollama
+ollama pull qwen3:14b
+ollama serve   # starts the server at http://localhost:11434
+```
+
+### Windows / Linux with NVIDIA GPU (Docker)
+
+Docker can pass through an NVIDIA GPU, so the container gets full GPU acceleration:
+
+```bash
+cp ollama.env.example ollama.env
+# edit ollama.env to set OLLAMA_MODEL if desired
+docker compose --env-file ollama.env -f docker-compose.ollama.yml -f docker-compose.ollama.nvidia.yml up -d
+```
+
+Recommended model for a machine with 32 GB RAM and an 8 GB VRAM GPU:
+
+- `hf.co/Qwen/Qwen3-14B-GGUF:Q4_K_M` (~9 GB, runs via RAM offloading on 8 GB VRAM)
+
+Alternatives:
+
+- `hf.co/Qwen/Qwen3-8B-GGUF:Q4_K_M` — faster, less VRAM
+- `qwen3:14b` — standard Ollama registry tag
+
+### Swap model (Docker setup)
+
+Edit `OLLAMA_MODEL` in `ollama.env`, then:
+
+```bash
+docker compose --env-file ollama.env -f docker-compose.ollama.yml -f docker-compose.ollama.nvidia.yml up -d ollama-model-pull
+```
+
+### Use Ollama as the LLM backend
+
+Pass `--llm-provider ollama` to the `process` command:
+
+```bash
+uv run snaplist process --photos-dir ./photos --llm-provider ollama
+```
+
+The model and host default to `$OLLAMA_MODEL` / `$OLLAMA_HOST` from your env file, or can be overridden per run:
+
+```bash
+uv run snaplist process --photos-dir ./photos \
+  --llm-provider ollama \
+  --llm-model llava:13b \
+  --ollama-host http://localhost:11434
+```
+
+> **Note:** photo grouping and item analysis send images to the model. Use a vision-capable model (e.g. `llava`, `moondream`) for full functionality. Text-only models (e.g. Qwen3) work for price research but will struggle with the vision steps.
+
 ## Installation
 
 ```bash
@@ -37,7 +97,7 @@ cp .env.example .env
 
 | Variable | Required for | Notes |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Everything | Get one at console.anthropic.com |
+| `ANTHROPIC_API_KEY` | Anthropic provider | Get one at console.anthropic.com |
 | `KLEINANZEIGEN_EMAIL` | Kleinanzeigen posting | Your login e-mail |
 | `KLEINANZEIGEN_PASSWORD` | Kleinanzeigen posting | Your login password |
 | `EBAY_APP_ID` | eBay posting | From developer.ebay.com |

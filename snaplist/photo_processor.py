@@ -6,11 +6,17 @@ import base64
 import io
 import json
 from pathlib import Path
+from typing import Any, cast
 
-import anthropic
 from PIL import Image, ImageEnhance, ImageOps
 
-from .config import API_IMAGE_MAX_PX, CLAUDE_MODEL, ENHANCED_IMAGE_MAX_WIDTH, GROUP_BATCH_SIZE, PHOTO_QUALITY
+from .config import (
+    API_IMAGE_MAX_PX,
+    ENHANCED_IMAGE_MAX_WIDTH,
+    GROUP_BATCH_SIZE,
+    PHOTO_QUALITY,
+)
+from .llm import LLMClient
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif"}
 
@@ -22,6 +28,8 @@ _MEDIA_TYPES: dict[str, str] = {
     ".gif": "image/gif",
 }
 
+JsonDict = dict[str, Any]
+
 
 def load_photos(photos_dir: Path) -> list[Path]:
     return sorted(p for p in photos_dir.iterdir() if p.suffix.lower() in SUPPORTED_EXTENSIONS)
@@ -30,21 +38,21 @@ def load_photos(photos_dir: Path) -> list[Path]:
 def _encode_for_api(path: Path, max_px: int = API_IMAGE_MAX_PX) -> tuple[str, str]:
     """Return (base64_data, media_type) with image resized to save API tokens."""
     img = Image.open(path).convert("RGB")
-    img.thumbnail((max_px, max_px), Image.LANCZOS)
+    img.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=80)
     data = base64.standard_b64encode(buf.getvalue()).decode()
     return data, "image/jpeg"
 
 
-def _build_image_block(path: Path) -> dict:
+def _build_image_block(path: Path) -> JsonDict:
     data, media_type = _encode_for_api(path)
     return {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}}
 
 
-def _group_batch(batch: list[Path], client: anthropic.Anthropic) -> list[list[int]]:
+def _group_batch(batch: list[Path], client: LLMClient) -> list[list[int]]:
     """Ask Claude to group a batch of photos by item. Returns lists of local indices."""
-    content: list[dict] = []
+    content: list[JsonDict] = []
     for i, photo in enumerate(batch):
         content.append(_build_image_block(photo))
         content.append({"type": "text", "text": f"[Photo {i}: {photo.name}]"})
@@ -62,19 +70,25 @@ def _group_batch(batch: list[Path], client: anthropic.Anthropic) -> list[list[in
         ),
     })
 
-    response = client.messages.create(
-        model=CLAUDE_MODEL,
+    response = client.messages_create(
         max_tokens=512,
         messages=[{"role": "user", "content": content}],
     )
 
     text = response.content[0].text
     start, end = text.find("{"), text.rfind("}") + 1
-    data = json.loads(text[start:end])
-    return [list(map(int, g)) for g in data["groups"]]
+    if start == -1 or end <= start:
+        raise ValueError(
+            f"Model returned no JSON for photo grouping.\n"
+            f"Raw response: {text!r}\n"
+            f"Tip: use a vision-capable model, or skip grouping with --single-item."
+        )
+    parsed = cast(JsonDict, json.loads(text[start:end]))
+    groups = cast(list[list[int]], parsed["groups"])
+    return [list(map(int, g)) for g in groups]
 
 
-def group_photos_by_item(photos: list[Path], client: anthropic.Anthropic) -> list[list[Path]]:
+def group_photos_by_item(photos: list[Path], client: LLMClient) -> list[list[Path]]:
     """Return photos grouped by item using Claude vision. Batches large sets."""
     if not photos:
         return []
@@ -101,11 +115,11 @@ def group_photos_by_item(photos: list[Path], client: anthropic.Anthropic) -> lis
 
 
 def _merge_groups_across_batches(
-    groups: list[list[Path]], client: anthropic.Anthropic
+    groups: list[list[Path]], client: LLMClient
 ) -> list[list[Path]]:
     """Use one representative photo per group to see if any groups should merge."""
     representatives = [g[0] for g in groups]
-    content: list[dict] = []
+    content: list[JsonDict] = []
     for i, photo in enumerate(representatives):
         content.append(_build_image_block(photo))
         content.append({"type": "text", "text": f"[Group {i} representative: {photo.name}]"})
@@ -120,15 +134,15 @@ def _merge_groups_across_batches(
         ),
     })
 
-    response = client.messages.create(
-        model=CLAUDE_MODEL,
+    response = client.messages_create(
         max_tokens=256,
         messages=[{"role": "user", "content": content}],
     )
 
     text = response.content[0].text
     start, end = text.find("{"), text.rfind("}") + 1
-    mapping: list[int] = json.loads(text[start:end])["mapping"]
+    parsed = cast(JsonDict, json.loads(text[start:end]))
+    mapping = cast(list[int], parsed["mapping"])
 
     merged: dict[int, list[Path]] = {}
     for original_idx, canonical_idx in enumerate(mapping):
@@ -146,7 +160,7 @@ def enhance_photo(source: Path, output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"enhanced_{source.stem}.jpg"
 
-    img = Image.open(source)
+    img: Image.Image = Image.open(source)
     if img.mode not in ("RGB", "RGBA"):
         img = img.convert("RGB")
     elif img.mode == "RGBA":
@@ -172,8 +186,7 @@ def enhance_photo(source: Path, output_dir: Path) -> Path:
         img = img.crop((0, (h - new_h) // 2, w, (h - new_h) // 2 + new_h))
 
     if img.width > ENHANCED_IMAGE_MAX_WIDTH:
-        ratio = ENHANCED_IMAGE_MAX_WIDTH / img.width
-        img = img.resize((ENHANCED_IMAGE_MAX_WIDTH, int(img.height * ratio)), Image.LANCZOS)
+        img.thumbnail((ENHANCED_IMAGE_MAX_WIDTH, ENHANCED_IMAGE_MAX_WIDTH), Image.Resampling.LANCZOS)
 
     img.save(output_path, "JPEG", quality=PHOTO_QUALITY, optimize=True)
     return output_path

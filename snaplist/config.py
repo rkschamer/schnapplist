@@ -28,3 +28,6 @@ PHOTO_QUALITY = 90
 GROUP_BATCH_SIZE = 10
 
 CLAUDE_MODEL = "claude-sonnet-4-6"
+
+OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3:14b")
