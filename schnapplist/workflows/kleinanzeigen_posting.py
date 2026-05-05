@@ -6,10 +6,13 @@ import base64
 import contextlib
 import importlib
 import json
+import os
 import re
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol, cast
 
+from platformdirs import user_cache_dir
 from pydantic import BaseModel, ValidationError
 
 from ..models import Item
@@ -162,6 +165,8 @@ def run_agentic_posting(
         if _maybe_advance_category_stall(
             page,
             state=state,
+            client=client,
+            item=item,
             has_form=has_form,
             category_options=category_options,
         ):
@@ -193,6 +198,8 @@ def run_agentic_posting(
             if _maybe_advance_category_stall(
                 page,
                 state=state,
+                client=client,
+                item=item,
                 has_form=has_form,
                 category_options=category_options,
             ):
@@ -247,6 +254,8 @@ def run_agentic_posting(
             if _maybe_advance_category_stall(
                 page,
                 state=state,
+                client=client,
+                item=item,
                 has_form=has_form,
                 category_options=category_options,
             ):
@@ -266,6 +275,101 @@ def run_agentic_posting(
             return _is_posting_complete(page, start_url=start_url, submitted=state.submitted)
 
     return _is_posting_complete(page, start_url=start_url, submitted=state.submitted)
+
+
+def run_mcp_posting(item: Item, *, max_steps: int) -> str:
+    """Run posting through Playwright MCP, letting the model use browser tools directly."""
+    from pydantic_ai import Agent
+    from pydantic_ai.mcp import MCPServerStdio
+
+    from ..config import (
+        ANTHROPIC_API_KEY,
+        CLAUDE_MODEL,
+        LLM_PROVIDER,
+        OLLAMA_HOST,
+        OLLAMA_MODEL,
+    )
+
+    if LLM_PROVIDER == "anthropic":
+        if not ANTHROPIC_API_KEY:
+            raise RuntimeError("ANTHROPIC_API_KEY is required for anthropic MCP mode.")
+        model_name = f"anthropic:{CLAUDE_MODEL}"
+    elif LLM_PROVIDER == "ollama":
+        base_url = os.getenv("OLLAMA_BASE_URL", "").strip() or OLLAMA_HOST.strip()
+        base_url = base_url.rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url = f"{base_url}/v1"
+        os.environ["OLLAMA_BASE_URL"] = base_url
+        model_name = f"ollama:{OLLAMA_MODEL}"
+    else:
+        raise RuntimeError(
+            "Unsupported llm.provider for MCP mode. Use 'anthropic' or 'ollama'."
+        )
+
+    payload = build_listing_payload(item)
+    photo_values = cast(list[str], payload.get("photo_paths", []))
+    photo_paths = [str(Path(p).expanduser().resolve()) for p in photo_values]
+
+    output_dir = Path(user_cache_dir("schnapplist")) / "playwright-mcp"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    server = MCPServerStdio(
+        "npx",
+        args=[
+            "-y",
+            "@playwright/mcp@latest",
+            "--output-dir",
+            str(output_dir),
+            "--save-session",
+        ],
+        timeout=60,
+        read_timeout=600,
+        max_retries=3,
+    )
+
+    agent = Agent(
+        model_name,
+        toolsets=[server],
+        retries=2,
+        system_prompt=(
+            "You are an autonomous browser operator posting one listing on kleinanzeigen.de. "
+            "Use Playwright MCP tools only. Prefer reliable, visible controls "
+            "over brittle guesses. "
+            "If login/CAPTCHA is required, wait and continue after the user resolves it."
+        ),
+    )
+
+    prompt = (
+        "Create this Kleinanzeigen listing end-to-end and submit it.\n"
+        "Required category behavior:\n"
+        "1. Pick one category.\n"
+        "2. Pick one sub-category when it appears.\n"
+        "3. Pick one sub-sub-category when it appears.\n"
+        "4. Click 'Weiter' to proceed after category depth is selected.\n\n"
+        f"Maximum planning/tool iterations: {max_steps}.\n"
+        f"Item name: {item.name}\n"
+        f"Category hint: {item.category or 'none'}\n"
+        f"Title: {payload.get('title', '')}\n"
+        f"Description:\n{payload.get('description', '')}\n"
+        f"Price (EUR): {payload.get('price', '')}\n"
+        f"Condition label: {payload.get('condition', '')}\n"
+        f"Photo files to upload: {json.dumps(photo_paths, ensure_ascii=True)}\n\n"
+        "Navigate to https://www.kleinanzeigen.de/p-anzeige-aufgeben.html and complete everything. "
+        "At the end, respond with exactly: FINAL_URL: <url>"
+    )
+
+    result = agent.run_sync(prompt)
+    output = str(result.output).strip()
+
+    final_match = re.search(r"FINAL_URL:\s*(https?://\S+)", output, flags=re.I)
+    if final_match:
+        return final_match.group(1).rstrip(".,)")
+
+    url_match = re.search(r"https?://\S+", output)
+    if url_match:
+        return url_match.group(0).rstrip(".,)")
+
+    raise RuntimeError(f"MCP posting finished without returning a final URL. Output: {output}")
 
 
 def wait_for_login_completion(page: Page, *, timeout_ms: int) -> bool:
@@ -330,10 +434,16 @@ def _maybe_advance_category_stall(
     page: Page,
     *,
     state: PostingWorkflowState,
+    client: LLMClient,
+    item: Item,
     has_form: bool,
     category_options: list[str],
 ) -> bool:
     if has_form or not category_options:
+        if not has_form and _click_category_continue(page):
+            print("Category flow: clicked 'Weiter' after category depth selection")
+            return True
+
         state.category_signature = ""
         state.repeated_category_frames = 0
         state.category_probe_index = 1
@@ -346,28 +456,44 @@ def _maybe_advance_category_stall(
         state.repeated_category_frames = 0
         state.category_probe_index = 1
         state.category_probe_cycles = 0
-        return False
+        preview = ", ".join(category_options[:6])
+        print(f"Category flow: visible level options -> {preview}")
+    else:
+        state.repeated_category_frames += 1
 
-    state.repeated_category_frames += 1
-    if state.repeated_category_frames < 2:
-        return False
+    # On some screens category choices remain visible after depth selection.
+    # If we keep seeing the same options, try advancing explicitly.
+    if state.repeated_category_frames >= 2 and _click_category_continue(page):
+        print("Category flow: clicked 'Weiter' on stable category level")
+        state.category_signature = ""
+        state.repeated_category_frames = 0
+        state.category_probe_index = 1
+        state.category_probe_cycles = 0
+        return True
 
-    probe_index = max(1, min(state.category_probe_index, len(category_options)))
-    clicked = _click_category_option(page, category_options, probe_index)
+    choice = _llm_pick_category_index(client, item=item, options=category_options)
+    index = choice if choice is not None else 1
+    index = max(1, min(index, len(category_options)))
+
+    # If the same option is chosen repeatedly on the same screen, probe the next one.
+    if (
+        state.repeated_category_frames >= 1
+        and index == state.category_probe_index
+    ):
+        index = (index % len(category_options)) + 1
+        state.category_probe_cycles += 1
+
+    clicked = _click_category_option(page, category_options, index)
     if not clicked:
         return False
 
-    label = category_options[probe_index - 1]
+    label = category_options[index - 1]
     print(
-        "Category fallback: selecting option "
-        f"{probe_index}/{len(category_options)} -> {label}"
+        "Category flow: selecting option "
+        f"{index}/{len(category_options)} -> {label}"
     )
 
-    state.repeated_category_frames = 0
-    state.category_probe_index += 1
-    if state.category_probe_index > len(category_options):
-        state.category_probe_index = 1
-        state.category_probe_cycles += 1
+    state.category_probe_index = index
 
     if state.category_probe_cycles >= 2:
         print(
@@ -379,6 +505,73 @@ def _maybe_advance_category_stall(
         _safe_wait(page, 20_000)
 
     return True
+
+
+def _llm_pick_category_index(client: LLMClient, *, item: Item, options: list[str]) -> int | None:
+    option_lines = "\n".join(f"{i + 1}. {opt}" for i, opt in enumerate(options))
+    hints = [
+        item.category or "",
+        item.name,
+        item.title_de or "",
+        item.brand or "",
+        item.model or "",
+        ", ".join(item.tags),
+    ]
+    hints_text = "\n".join(line for line in hints if line.strip())
+
+    response = client.messages_create(
+        max_tokens=100,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "Pick ONE best option from the CURRENT category level on kleinanzeigen.\n"
+                            "Goal: progress category -> sub-category -> sub-sub-category.\n"
+                            "If the list is broad, pick a broad parent; if already specific, pick a specific child.\n"
+                            "Return ONLY JSON in this form: {\"index\": <number>}\n\n"
+                            f"Item hints:\n{hints_text}\n\n"
+                            f"Visible options:\n{option_lines}\n"
+                        ),
+                    }
+                ],
+            }
+        ],
+    )
+
+    raw = response.content[0].text
+    m = re.search(r"\{[\s\S]*\}", raw)
+    if not m:
+        return None
+    with contextlib.suppress(json.JSONDecodeError, ValueError, TypeError):
+        data = json.loads(m.group(0))
+        if isinstance(data, dict):
+            json_obj = cast(dict[str, object], data)
+            raw_index = json_obj.get("index")
+            if isinstance(raw_index, (int, float, str)):
+                return int(raw_index)
+    return None
+
+
+def _click_category_continue(page: Page) -> bool:
+    names = [
+        re.compile(r"weiter", re.I),
+        re.compile(r"fortfahren", re.I),
+        re.compile(r"naechste|n[äa]chste", re.I),
+    ]
+
+    for name in names:
+        with contextlib.suppress(Exception):
+            page.get_by_role("button", name=name).first.click(timeout=3_000)
+            return True
+
+    with contextlib.suppress(Exception):
+        page.get_by_text(re.compile(r"weiter", re.I), exact=False).first.click(timeout=3_000)
+        return True
+
+    return False
 
 
 def _make_action_planner(client: LLMClient) -> _ActionPlanner:
@@ -634,19 +827,15 @@ def _fill_field_by_semantic_name(page: Page, field: str, value: str) -> bool:
 
 
 def _visible_category_options(page: Page) -> list[str]:
-    """Collect likely clickable category labels currently visible on screen."""
+    """Collect category options visible in the posting category widget."""
     with contextlib.suppress(Exception):
         options = page.evaluate(
-            """
+            r"""
             () => {
-              const sel = [
-                'a',
-                'button',
-                '[role="button"]',
-                'label',
-                'li',
-                'div'
-              ].join(',');
+                            const clickSel = ['a', 'button', '[role="button"]', '[role="option"]', 'label', 'li'].join(',');
+                            const bucketSize = 140;
+                            const maxOptions = 20;
+                            const out = [];
 
               const isVisible = (el) => {
                 const st = window.getComputedStyle(el);
@@ -657,19 +846,96 @@ def _visible_category_options(page: Page) -> list[str]:
                 return true;
               };
 
-              const out = [];
-              const seen = new Set();
-              for (const el of Array.from(document.querySelectorAll(sel))) {
-                if (!isVisible(el)) continue;
-                const txt = (el.textContent || '').replace(/\\s+/g, ' ').trim();
-                if (!txt) continue;
-                if (txt.length > 80) continue;
-                if (!(/[A-Za-z\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df]/.test(txt))) continue;
-                if (seen.has(txt)) continue;
-                seen.add(txt);
-                out.push(txt);
-                if (out.length >= 14) break;
+                            const normalize = (s) => (s || '').replace(/\s+/g, ' ').trim();
+
+                            const isLikelyCategoryRoot = (root) => {
+                const txt = (root.textContent || '').toLowerCase();
+                if (txt.includes('kategorie')) return true;
+                const attrs = [root.id || '', root.className || ''].join(' ').toLowerCase();
+                return attrs.includes('category') || attrs.includes('kategorie');
+              };
+
+                            const markerSel = 'label,h2,h3,h4,legend,strong,span,div,p';
+                            const markers = Array.from(document.querySelectorAll(markerSel)).filter((el) => {
+                                if (!isVisible(el)) return false;
+                                const txt = normalize(el.textContent).toLowerCase();
+                                if (!txt || txt.length > 80) return false;
+                                return txt.includes('kategorie');
+                            });
+
+                            const rootCandidates = Array.from(new Set(markers
+                                .map((el) => el.closest('section, fieldset, form, div'))
+                                .filter((el) => el && isVisible(el))));
+
+                            if (!rootCandidates.length) return out;
+
+                            const scoreRoot = (root) => {
+                                const clickables = root.querySelectorAll(clickSel).length;
+                                if (!clickables) return -1;
+                                let score = clickables;
+                                if (isLikelyCategoryRoot(root)) score += 30;
+                                return score;
+                            };
+
+                            let root = document.body;
+                            let best = -1;
+                            for (const candidate of rootCandidates) {
+                                const s = scoreRoot(candidate);
+                                if (s > best) {
+                                    best = s;
+                                    root = candidate;
+                                }
+                            }
+
+                            const groups = new Map();
+              const banned = new Set([
+                'weiter', 'zurueck', 'zuruck', 'abbrechen', 'hilfe', 'impressum',
+                'datenschutz', 'agb', 'mein konto', 'einloggen', 'registrieren'
+              ]);
+
+                            for (const el of Array.from(root.querySelectorAll(clickSel))) {
+                                if (!isVisible(el)) continue;
+                                const txt = normalize(el.textContent);
+                                if (!txt) continue;
+                                if (txt.length < 2 || txt.length > 64) continue;
+                                const norm = txt.toLowerCase();
+                                if (banned.has(norm)) continue;
+                                if (!(/[A-Za-z\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df]/.test(txt))) continue;
+                                const r = el.getBoundingClientRect();
+                                const bucket = Math.round((r.left + r.width / 2) / bucketSize);
+                                if (!groups.has(bucket)) groups.set(bucket, []);
+                                const arr = groups.get(bucket);
+                                if (!arr.some((entry) => entry.norm === norm)) {
+                                    arr.push({ text: txt, norm });
+                }
               }
+
+                            const orderedBuckets = Array.from(groups.keys()).sort((a, b) => a - b);
+                            const candidateBuckets = orderedBuckets.filter((bucket) => groups.get(bucket).length >= 2);
+                            const activeBucket = (candidateBuckets.length ? candidateBuckets : orderedBuckets).at(-1);
+                            if (activeBucket === undefined) return out;
+
+                            for (const entry of groups.get(activeBucket)) {
+                                out.push(entry.text);
+                                if (out.length >= maxOptions) break;
+                            }
+
+                            const nonCategoryHints = [
+                                'ich biete',
+                                'ich suche',
+                                'versand',
+                                'zustand',
+                                'preis',
+                                'bitte wählen',
+                                'bitte waehlen'
+                            ];
+                            if (out.some((txt) => {
+                                const norm = txt.toLowerCase();
+                                return nonCategoryHints.some((hint) => norm.includes(hint));
+                            })) {
+                                return [];
+                            }
+
               return out;
             }
             """
@@ -693,6 +959,128 @@ def _click_category_option(page: Page, options: list[str], index: int) -> bool:
     if index < 1 or index > len(options):
         return False
     target = options[index - 1]
+
+    with contextlib.suppress(Exception):
+        clicked = page.evaluate(
+            r"""
+            (targetText) => {
+                            const clickSel = ['a', 'button', '[role="button"]', '[role="option"]', 'label', 'li', 'div'].join(',');
+                            const actionSel = ['a', 'button', '[role="button"]', '[role="option"]', 'label'].join(',');
+                            const bucketSize = 140;
+
+                            const isVisible = (el) => {
+                                const st = window.getComputedStyle(el);
+                                if (st.display === 'none' || st.visibility === 'hidden') return false;
+                                const r = el.getBoundingClientRect();
+                                return r.width > 20 && r.height > 14 && r.bottom >= 0 && r.top <= window.innerHeight;
+                            };
+
+                            const normalize = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                            const targetNorm = normalize(targetText);
+                            if (!targetNorm) return false;
+
+                            const isLikelyCategoryRoot = (root) => {
+                                const txt = (root.textContent || '').toLowerCase();
+                                if (txt.includes('kategorie')) return true;
+                                const attrs = [root.id || '', root.className || ''].join(' ').toLowerCase();
+                                return attrs.includes('category') || attrs.includes('kategorie');
+                            };
+
+                            const markerSel = 'label,h2,h3,h4,legend,strong,span,div,p';
+                            const markers = Array.from(document.querySelectorAll(markerSel)).filter((el) => {
+                                if (!isVisible(el)) return false;
+                                const txt = normalize(el.textContent || '');
+                                if (!txt || txt.length > 80) return false;
+                                return txt.includes('kategorie');
+                            });
+
+                            const rootCandidates = Array.from(new Set(markers
+                                .map((el) => el.closest('section, fieldset, form, div'))
+                                .filter((el) => el && isVisible(el))));
+
+                            if (!rootCandidates.length) return false;
+
+                            const scoreRoot = (root) => {
+                                const clickables = root.querySelectorAll(clickSel).length;
+                                if (!clickables) return -1;
+                                let score = clickables;
+                                if (isLikelyCategoryRoot(root)) score += 30;
+                                return score;
+                            };
+
+                            let root = document.body;
+                            let best = -1;
+                            for (const candidate of rootCandidates) {
+                                const s = scoreRoot(candidate);
+                                if (s > best) {
+                                    best = s;
+                                    root = candidate;
+                                }
+                            }
+
+                            const all = Array.from(root.querySelectorAll(clickSel)).filter((el) => isVisible(el));
+                            if (!all.length) return false;
+
+                            const groups = new Map();
+                            for (const el of all) {
+                                const txt = normalize(el.textContent || '');
+                                if (!txt) continue;
+                                const r = el.getBoundingClientRect();
+                                const bucket = Math.round((r.left + r.width / 2) / bucketSize);
+                                if (!groups.has(bucket)) groups.set(bucket, []);
+                                groups.get(bucket).push(el);
+                            }
+
+                            const orderedBuckets = Array.from(groups.keys()).sort((a, b) => a - b);
+                            const candidateBuckets = orderedBuckets.filter((bucket) => groups.get(bucket).length >= 2);
+                            const activeBucket = (candidateBuckets.length ? candidateBuckets : orderedBuckets).at(-1);
+
+                            const scoped = activeBucket === undefined ? all : groups.get(activeBucket);
+                            let candidates = scoped.filter((el) => {
+                                if (!isVisible(el)) return false;
+                                const txt = normalize(el.textContent || '');
+                                if (!txt) return false;
+                                if (txt === targetNorm) return true;
+                                return txt.includes(targetNorm);
+                            });
+
+                            if (!candidates.length) {
+                                candidates = all.filter((el) => {
+                                    const txt = normalize(el.textContent || '');
+                                    if (!txt) return false;
+                                    if (txt === targetNorm) return true;
+                                    return txt.includes(targetNorm);
+                                });
+                            }
+                            if (!candidates.length) return false;
+
+                            candidates.sort((a, b) => {
+                                const ta = normalize(a.textContent || '');
+                                const tb = normalize(b.textContent || '');
+                                const sa = (ta === targetNorm ? 10 : 0) + (ta.length <= 40 ? 1 : 0);
+                                const sb = (tb === targetNorm ? 10 : 0) + (tb.length <= 40 ? 1 : 0);
+                                return sb - sa;
+                            });
+
+                                                        const pick = candidates[0];
+                                                        const actionable = pick.matches(actionSel)
+                                                            ? pick
+                                                            : (pick.closest(actionSel) || pick.querySelector(actionSel) || pick);
+
+                                                        actionable.scrollIntoView({ block: 'center', inline: 'center' });
+                                                        actionable.click();
+                                                        actionable.dispatchEvent(new MouseEvent('click', {
+                                                            bubbles: true,
+                                                            cancelable: true,
+                                                            view: window,
+                                                        }));
+                            return true;
+                        }
+            """,
+            target,
+        )
+        if bool(clicked):
+            return True
 
     with contextlib.suppress(Exception):
         page.get_by_text(target, exact=True).first.click(timeout=3_500)

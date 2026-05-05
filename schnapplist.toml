@@ -36,4 +36,5 @@ default_marketplace = "ebay"
 # Posting workflow engine.
 # "legacy" keeps current planner path.
 # "pydanticai" enables the new PydanticAI planner path (experimental).
+# "mcp" runs a tool-using browser agent via Playwright MCP.
 engine = "legacy"

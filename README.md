@@ -99,6 +99,19 @@ After processing you'll be asked whether to open the report right away — say y
 
 Uses Playwright to drive the web UI (no public API). Runs the browser **in headed mode** so you can solve CAPTCHAs manually. Needs `KLEINANZEIGEN_EMAIL` and `KLEINANZEIGEN_PASSWORD` in `.env`.
 
+If you want a tool-using browser agent (Playwright MCP) instead of the local selector loop, set:
+
+```toml
+[workflow]
+engine = "mcp"
+```
+
+MCP mode launches `@playwright/mcp` through `npx` and lets the model inspect/control the page with browser tools directly.
+It works with both providers:
+
+- `llm.provider = "anthropic"` (requires `ANTHROPIC_API_KEY`)
+- `llm.provider = "ollama"` (requires a tool-capable Ollama model such as qwen3/llama3.1 families)
+
 ### eBay
 
 Uses the eBay Trading API (`AddItem`, site ID 77 — Germany). Needs `EBAY_APP_ID` and `EBAY_AUTH_TOKEN` in `.env`. Set `EBAY_SANDBOX=true` to test before going live.

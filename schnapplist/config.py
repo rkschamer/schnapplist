@@ -72,5 +72,5 @@ LISTING_DISCLAIMER: str = _listing.get("disclaimer", "").strip()
 DEFAULT_MARKETPLACE: str = _listing.get("default_marketplace", "kleinanzeigen")
 
 # Workflow engine for posting orchestration.
-# Supported: "legacy" (default), "pydanticai".
-WORKFLOW_ENGINE: str = _workflow.get("engine", os.getenv("WORKFLOW_ENGINE", "legacy"))
+# Supported: "legacy" (default), "pydanticai", "mcp".
+WORKFLOW_ENGINE: str = os.getenv("WORKFLOW_ENGINE") or _workflow.get("engine", "legacy")
