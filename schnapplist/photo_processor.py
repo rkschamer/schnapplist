@@ -38,6 +38,7 @@ def load_photos(photos_dir: Path) -> list[Path]:
 def _encode_for_api(path: Path, max_px: int = API_IMAGE_MAX_PX) -> tuple[str, str]:
     """Return (base64_data, media_type) with image resized to save API tokens."""
     img = Image.open(path).convert("RGB")
+    img = ImageOps.exif_transpose(img)  # honour EXIF rotation so the LLM sees the right orientation
     img.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=80)
@@ -202,35 +203,48 @@ _ENHANCE_SYSTEM = (
     "object with the optimal PIL enhancement parameters to make it look clean, bright, "
     "and professional for a second-hand marketplace listing. "
     "Keys and allowed ranges:\n"
+    "  rotation: 0, 90, 180, or 270 — degrees to rotate clockwise.\n"
+    "    ROTATION CHECK (always do this first): find any text or brand label on the product "
+    "and determine its reading direction in the image as-is:\n"
+    "      • letters run bottom→top  (you tilt head right to read) → rotation: 90\n"
+    "      • letters run top→bottom  (you tilt head left to read)  → rotation: 270\n"
+    "      • text is upside-down                                   → rotation: 180\n"
+    "      • text reads left-to-right without tilting              → rotation: 0\n"
     "  autocontrast_cutoff: 0–5 (percent of darkest/brightest pixels to ignore)\n"
     "  brightness: 0.7–1.6 (1.0 = unchanged)\n"
     "  contrast: 0.7–1.6 (1.0 = unchanged)\n"
     "  sharpness: 0.5–2.5 (1.0 = unchanged)\n"
     '  target_ratio: one of "4:3" (landscape), "3:4" (portrait), "1:1" (square), "keep" (no crop)\n'
-    "Choose target_ratio to best frame the subject without cutting off any part of the item. "
+    "CRITICAL — target_ratio: ALWAYS default to 'keep'. Only choose a specific ratio when there "
+    "is clearly visible empty background that can be removed without getting anywhere near the "
+    "item. If ANY part of the item is close to any edge, use 'keep'. When in doubt: 'keep'.\n"
     "Reply with ONLY the JSON object, no prose."
 )
 
 _FEEDBACK_SYSTEM = (
     "You are reviewing an enhanced product photo for a second-hand marketplace listing. "
     "You will see the original photo, then the current enhanced version.\n"
-    "Check all three criteria:\n"
-    "  1. Item fully visible — nothing cut off by the crop\n"
-    "  2. Lighting correct — not too dark or blown out\n"
-    "  3. Crop/orientation appropriate — best ratio for this subject\n\n"
+    "Check all four criteria:\n"
+    "  1. Item fully visible — nothing cut off at any edge\n"
+    "  2. Text readable — all product text/logos are upright and readable without tilting your head\n"
+    "  3. Lighting correct — not too dark or blown out\n"
+    "  4. Crop appropriate — only empty/background space removed, never the item\n\n"
     'If all criteria are met, return {"accepted": true}.\n'
     'If any criterion fails, return {"accepted": false} together with corrected params:\n'
-    "  autocontrast_cutoff (0–5), brightness (0.7–1.6), contrast (0.7–1.6),\n"
-    '  sharpness (0.5–2.5), target_ratio ("4:3"|"3:4"|"1:1"|"keep").\n'
+    "  rotation (0/90/180/270), autocontrast_cutoff (0–5), brightness (0.7–1.6),\n"
+    '  contrast (0.7–1.6), sharpness (0.5–2.5), target_ratio ("4:3"|"3:4"|"1:1"|"keep").\n'
+    "CRITICAL — target_ratio: ALWAYS set to 'keep' unless you can see obvious empty background "
+    "that could be cropped without getting anywhere near the item. When in doubt: 'keep'.\n"
     "Reply with ONLY the JSON object, no prose."
 )
 
 _ENHANCE_DEFAULTS: JsonDict = {
+    "rotation": 0,
     "autocontrast_cutoff": 1,
     "brightness": 1.05,
     "contrast": 1.1,
     "sharpness": 1.3,
-    "target_ratio": "4:3",
+    "target_ratio": "keep",
 }
 
 _MAX_ENHANCE_ITERATIONS = 3
@@ -250,6 +264,8 @@ def _parse_params(raw: JsonDict, base: JsonDict) -> JsonDict:
             params[key] = max(lo, min(hi, float(raw[key])))
     if raw.get("target_ratio") in ("4:3", "3:4", "1:1", "keep"):
         params["target_ratio"] = raw["target_ratio"]
+    if raw.get("rotation") in (0, 90, 180, 270):
+        params["rotation"] = int(raw["rotation"])
     return params
 
 
@@ -310,13 +326,21 @@ def _apply_enhancement(source: Path, params: JsonDict) -> Image.Image:
     elif img.mode != "RGB":
         img = img.convert("RGB")
 
+    # Fix EXIF orientation first (handles most phone photos automatically)
+    img = ImageOps.exif_transpose(img)
+
+    # Apply LLM-suggested rotation on top (for cases EXIF alone doesn't fix)
+    rotation = int(params.get("rotation", 0))
+    if rotation in (90, 180, 270):
+        img = img.rotate(-rotation, expand=True)
+
     img = ImageOps.autocontrast(img, cutoff=params["autocontrast_cutoff"])
     img = ImageEnhance.Brightness(img).enhance(params["brightness"])
     img = ImageEnhance.Contrast(img).enhance(params["contrast"])
     img = ImageEnhance.Sharpness(img).enhance(params["sharpness"])
 
     ratio_map = {"4:3": 4 / 3, "3:4": 3 / 4, "1:1": 1.0}
-    target = ratio_map.get(params.get("target_ratio", "4:3"))
+    target = ratio_map.get(params.get("target_ratio", "keep"))
     if target is not None:
         w, h = img.size
         if w / h > target:
