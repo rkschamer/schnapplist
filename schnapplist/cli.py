@@ -8,7 +8,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .models import Item
@@ -88,7 +88,7 @@ def process(
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
     from .config import CLAUDE_MODEL, LLM_PROVIDER, OLLAMA_HOST, OLLAMA_MODEL
     from .llm import LLMClient
-    from .orchestration import ProcessOrchestrator
+    from .workflows.process_pipeline import ProcessWorkflow
 
     provider = llm_provider or LLM_PROVIDER
 
@@ -101,8 +101,8 @@ def process(
         host = ollama_host or OLLAMA_HOST
         client = LLMClient("ollama", model, ollama_host=host)
         console.print(f"Using Ollama [bold]{model}[/bold] at [cyan]{host}[/cyan]")
-    orchestrator = ProcessOrchestrator(client, console=console)
-    result = orchestrator.run(
+    workflow = ProcessWorkflow(client, console=console)
+    result = workflow.run(
         photos_dir=photos_dir,
         output_dir=output_dir,
         single_item=single_item,
@@ -149,75 +149,48 @@ def process(
 )
 def review(output_dir: Path, report: Path | None) -> None:
     """Open the Markdown report in $EDITOR and sync edits back to items.json."""
-    report_path = Path(report) if report else _find_latest_report(output_dir)
+    from .workflows.review_pipeline import find_latest_report
+
+    report_path = Path(report) if report else find_latest_report(output_dir)
     if report_path is None:
         console.print("[yellow]No report found. Run 'process' first.[/yellow]")
         sys.exit(1)
     _run_review(output_dir, report_path)
 
 
-def _find_latest_report(output_dir: Path) -> Path | None:
-    candidates = sorted(output_dir.glob("schnapplist_report_*.md"), reverse=True)
-    return candidates[0] if candidates else None
-
-
 def _run_review(output_dir: Path, report_path: Path) -> None:
     """Open report in $EDITOR, then parse edits back to items.json."""
-    from .report_parser import parse_report
+    from .workflows.review_pipeline import ReviewWorkflow
 
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or _find_fallback_editor()
     console.print(f"Opening [bold]{report_path}[/bold] in [cyan]{editor}[/cyan] …")
     subprocess.run([editor, str(report_path)], check=False)
 
-    state_file = output_dir / "items.json"
-    if not state_file.exists():
+    workflow = ReviewWorkflow()
+    try:
+        result = workflow.run(output_dir=output_dir, report_path=report_path)
+    except FileNotFoundError:
         console.print("[yellow]items.json not found — cannot sync edits.[/yellow]")
         return
 
-    diffs = parse_report(report_path)
-    if not diffs:
+    if result.parsed_items == 0:
         console.print("[yellow]No parseable item sections found in report.[/yellow]")
         return
 
-    items_data: list[dict[str, Any]] = json.loads(state_file.read_text(encoding="utf-8"))
-    index: dict[str, dict[str, Any]] = {d["id"]: d for d in items_data}
-    changed = 0
-
-    for diff in diffs:
-        item_id = diff.get("id")
-        if not item_id or item_id not in index:
-            continue
-        existing = index[item_id]
-        for key, new_val in diff.items():
-            if key == "id":
-                continue
-            if key == "suggested_price":
-                price_info = cast(dict[str, Any], existing.get("price_info"))
-                if price_info and price_info.get("suggested_price") != new_val:
-                    price_info["suggested_price"] = new_val
-                    changed += 1
-            elif key == "ebay_options":
-                if "ebay_options" not in existing or not existing["ebay_options"]:
-                    existing["ebay_options"] = {}
-                ebay_opts = cast(dict[str, Any], existing["ebay_options"])
-                for opt_key, opt_val in cast(dict[str, Any], new_val).items():
-                    if ebay_opts.get(opt_key) != opt_val:
-                        ebay_opts[opt_key] = opt_val
-                        changed += 1
-            elif existing.get(key) != new_val:
-                existing[key] = new_val
-                changed += 1
-
-    state_file.write_text(
-        json.dumps(items_data, indent=2, default=str),
-        encoding="utf-8",
+    console.print(
+        "[green]✓[/green] Synced "
+        f"[bold]{result.changed_fields}[/bold] field change(s) to {result.state_file}"
     )
-    console.print(f"[green]✓[/green] Synced [bold]{changed}[/bold] field change(s) to {state_file}")
 
 
 def _find_fallback_editor() -> str:
     for candidate in ("nano", "vi", "notepad"):
-        result = subprocess.run(["which", candidate], capture_output=True, text=True)
+        result = subprocess.run(
+            ["which", candidate],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if result.returncode == 0:
             return candidate
     return "vi"
@@ -429,6 +402,7 @@ def config_show() -> None:
         OLLAMA_HOST,
         OLLAMA_MODEL,
         TOML_USER_PATH,
+        WORKFLOW_ENGINE,
         _find_toml,
     )
 
@@ -451,6 +425,7 @@ def config_show() -> None:
     t.add_row("[llm] model", CLAUDE_MODEL if LLM_PROVIDER == "anthropic" else OLLAMA_MODEL)
     if LLM_PROVIDER == "ollama":
         t.add_row("[llm] ollama_host", OLLAMA_HOST)
+    t.add_row("[workflow] engine", WORKFLOW_ENGINE)
     t.add_row("[listing] default_marketplace", DEFAULT_MARKETPLACE)
     disclaimer_preview = (
         (LISTING_DISCLAIMER[:60] + "…")

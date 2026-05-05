@@ -29,3 +29,11 @@ Der Artikel wird unter Ausschluss jeglicher Gewährleistung verkauft.
 # Default marketplace when the LLM does not suggest one.
 # Allowed values: "kleinanzeigen" | "ebay"
 default_marketplace = "ebay"
+
+
+[workflow]
+
+# Posting workflow engine.
+# "legacy" keeps current planner path.
+# "pydanticai" enables the new PydanticAI planner path (experimental).
+engine = "legacy"

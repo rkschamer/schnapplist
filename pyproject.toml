@@ -9,6 +9,7 @@ dependencies = [
     "click>=8.1.0",
     "rich>=13.0.0",
     "litellm>=1.72.0",
+    "pydantic-ai>=0.0.24",
     "ddgs>=9.0.0",
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
