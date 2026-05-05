@@ -1,0 +1,31 @@
+# Schnapplist configuration
+# Edit this file to customise behaviour without touching the source code.
+# No secrets here — credentials stay in .env.
+
+[llm]
+
+# LLM backend: "anthropic" | "ollama"
+provider = "ollama"
+
+# Model to use. Leave commented to get the provider default.
+# Anthropic default: claude-sonnet-4-6
+# Ollama default:    qwen3:14b
+model = "qwen3.6:35b"
+
+# Ollama server URL (only used when provider = "ollama")
+ollama_host = "http://localhost:11434"
+
+
+[listing]
+
+# Text appended to every listing description at posting time.
+# Standard German private-sale disclaimer (Privatverkauf-Klausel).
+# Set to "" to disable.
+disclaimer = """
+Privatverkauf – keine Rücknahme, keine Gewährleistung.
+Der Artikel wird unter Ausschluss jeglicher Gewährleistung verkauft.
+"""
+
+# Default marketplace when the LLM does not suggest one.
+# Allowed values: "kleinanzeigen" | "ebay"
+default_marketplace = "ebay"

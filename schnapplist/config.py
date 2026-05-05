@@ -1,10 +1,28 @@
-"""Configuration loaded from environment / .env file."""
+"""Configuration loaded from environment / .env file and schnapplist.toml."""
 
 import os
+import tomllib
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ---------------------------------------------------------------------------
+# TOML config (schnapplist.toml next to pyproject.toml)
+# ---------------------------------------------------------------------------
+
+_TOML_PATH = Path(__file__).parent.parent / "schnapplist.toml"
+
+def _load_toml() -> dict:
+    if _TOML_PATH.exists():
+        with open(_TOML_PATH, "rb") as f:
+            return tomllib.load(f)
+    return {}
+
+_toml = _load_toml()
+_listing = _toml.get("listing", {})
+_llm = _toml.get("llm", {})
 
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -26,7 +44,18 @@ PHOTO_QUALITY = 90
 # Max photos per Claude grouping request (to stay within context limits)
 GROUP_BATCH_SIZE = 10
 
-CLAUDE_MODEL = "claude-sonnet-4-6"
+LLM_PROVIDER: str = _llm.get("provider", "anthropic")
+CLAUDE_MODEL = _llm.get("model") or os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 
-OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen3:14b")
+OLLAMA_HOST: str = _llm.get("ollama_host") or os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL: str = _llm.get("model") or os.getenv("OLLAMA_MODEL", "qwen3:14b")
+
+# ---------------------------------------------------------------------------
+# Listing settings (from schnapplist.toml)
+# ---------------------------------------------------------------------------
+
+# Disclaimer text appended to every listing description at posting time.
+LISTING_DISCLAIMER: str = _listing.get("disclaimer", "").strip()
+
+# Default marketplace when the LLM does not suggest one.
+DEFAULT_MARKETPLACE: str = _listing.get("default_marketplace", "kleinanzeigen")

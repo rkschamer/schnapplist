@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from .config import DEFAULT_MARKETPLACE, LISTING_DISCLAIMER
 from .models import EbayListingType, Item
 
 
@@ -32,7 +33,7 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
         price_str = f"**{price.suggested_price:.2f} {price.currency}**" if price else "_not determined_"
         range_str = f"(range {price.min_price:.2f}–{price.max_price:.2f} {price.currency})" if price else ""
 
-        marketplace = item.marketplace or "kleinanzeigen"
+        marketplace = item.marketplace or DEFAULT_MARKETPLACE
 
         lines += [
             f"## {item.name}",
@@ -89,6 +90,12 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
                 rel = display
             lines.append(f"![{photo.original_path.name}]({rel})")
         lines.append("")
+
+        if LISTING_DISCLAIMER:
+            lines += [
+                f"> **Disclaimer** _(wird beim Posten automatisch angehängt)_: {LISTING_DISCLAIMER.strip()}",
+                "",
+            ]
 
         # --- Research section (not posted) ---
         has_research = price and (price.reasoning or price.sources or range_str)

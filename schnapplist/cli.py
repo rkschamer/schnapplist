@@ -59,10 +59,9 @@ def main() -> None:
 )
 @click.option(
     "--llm-provider",
-    default="anthropic",
-    show_default=True,
+    default=None,
     type=click.Choice(["anthropic", "ollama"]),
-    help="LLM backend to use for analysis.",
+    help="LLM backend (default: from schnapplist.toml [llm] provider).",
 )
 @click.option(
     "--llm-model",
@@ -83,11 +82,13 @@ def process(
     ollama_host: str | None,
 ) -> None:
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
-    from .config import CLAUDE_MODEL, OLLAMA_HOST, OLLAMA_MODEL
+    from .config import CLAUDE_MODEL, LLM_PROVIDER, OLLAMA_HOST, OLLAMA_MODEL
     from .llm import LLMClient
     from .orchestration import ProcessOrchestrator
 
-    if llm_provider == "anthropic":
+    provider = llm_provider or LLM_PROVIDER
+
+    if provider == "anthropic":
         api_key = _require_anthropic_key()
         model = llm_model or CLAUDE_MODEL
         client = LLMClient("anthropic", model, api_key=api_key)
@@ -96,7 +97,6 @@ def process(
         host = ollama_host or OLLAMA_HOST
         client = LLMClient("ollama", model, ollama_host=host)
         console.print(f"Using Ollama [bold]{model}[/bold] at [cyan]{host}[/cyan]")
-
     orchestrator = ProcessOrchestrator(client, console=console)
     result = orchestrator.run(
         photos_dir=photos_dir,
@@ -295,10 +295,11 @@ def post(
         console.print(f"[red]Item '{item_id}' not found.[/red]")
         sys.exit(1)
 
+    from .config import DEFAULT_MARKETPLACE
     item = Item.model_validate(item_data)
 
     # Resolve marketplace: CLI flag overrides report value
-    effective_marketplace = marketplace or item.marketplace or "kleinanzeigen"
+    effective_marketplace = marketplace or item.marketplace or DEFAULT_MARKETPLACE
 
     # Apply schedule override to eBay options if provided
     if schedule and item.ebay_options:

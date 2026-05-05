@@ -7,7 +7,7 @@ Credentials: KLEINANZEIGEN_EMAIL and KLEINANZEIGEN_PASSWORD in .env
 
 from __future__ import annotations
 
-from ..config import KLEINANZEIGEN_EMAIL, KLEINANZEIGEN_PASSWORD
+from ..config import KLEINANZEIGEN_EMAIL, KLEINANZEIGEN_PASSWORD, LISTING_DISCLAIMER
 from ..models import Item
 from .base import BaseMarketplace
 
@@ -63,7 +63,10 @@ class KleinanzeigenMarketplace(BaseMarketplace):
             page.fill("#postad-title", title[:60])
 
             # Description
-            page.fill("#postad-description", item.description)
+            description = item.description
+            if LISTING_DISCLAIMER:
+                description = f"{description}\n\n{LISTING_DISCLAIMER}"
+            page.fill("#postad-description", description)
 
             # Price
             if item.price_info:

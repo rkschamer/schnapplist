@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 
 import requests
 
-from ..config import EBAY_APP_ID, EBAY_AUTH_TOKEN, EBAY_SANDBOX
+from ..config import EBAY_APP_ID, EBAY_AUTH_TOKEN, EBAY_SANDBOX, LISTING_DISCLAIMER
 from ..models import EbayListingOptions, EbayListingType, Item
 from .base import BaseMarketplace
 
@@ -55,6 +55,9 @@ class EbayMarketplace(BaseMarketplace):
         condition_id = item.condition.to_ebay_condition()
         title = (item.title_de or item.name)[:80]
         duration = opts.duration_days if opts.duration_days in _VALID_DURATIONS else 7
+        description = item.description
+        if LISTING_DISCLAIMER:
+            description = f"{description}\n\n{LISTING_DISCLAIMER}"
 
         listing_type_xml, extra_xml = _build_listing_type_xml(opts, base_price)
         schedule_xml = _build_schedule_xml(opts)
@@ -66,7 +69,7 @@ class EbayMarketplace(BaseMarketplace):
   </RequesterCredentials>
   <Item>
     <Title>{_xml_escape(title)}</Title>
-    <Description><![CDATA[{item.description}]]></Description>
+    <Description><![CDATA[{description}]]></Description>
     <PrimaryCategory><CategoryID>{category_id}</CategoryID></PrimaryCategory>
     <StartPrice>{base_price:.2f}</StartPrice>
     <CategoryMappingAllowed>true</CategoryMappingAllowed>
