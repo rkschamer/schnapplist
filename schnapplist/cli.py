@@ -253,7 +253,12 @@ def list_items(output_dir: Path) -> None:
     type=click.Path(path_type=Path),
     show_default=True,
 )
-@click.option("--item-id", "-i", required=True, help="Item ID to post (see 'list' command).")
+@click.option(
+    "--item-id", "-i",
+    required=False,
+    default=None,
+    help="Item ID to post. If omitted, posts all approved items.",
+)
 @click.option(
     "--marketplace", "-m",
     type=click.Choice(["kleinanzeigen", "ebay"]),
@@ -273,73 +278,110 @@ def list_items(output_dir: Path) -> None:
 )
 def post(
     output_dir: Path,
-    item_id: str,
+    item_id: str | None,
     marketplace: str | None,
     schedule: str | None,
     dry_run: bool,
 ) -> None:
-    """Post an item to a marketplace.
+    """Post items to a marketplace.
 
-    Marketplace and eBay options (listing type, duration, reserve price) are
-    read from items.json (set by the LLM and editable in the Markdown report).
-    Use --marketplace to override the marketplace from the report.
+    If --item-id is given, posts that single item.
+    Otherwise, posts all approved items (set Approved to true in the report).
     """
+    from .config import DEFAULT_MARKETPLACE
     from .models import Item
     from .providers import MARKETPLACES
+    from .workflows.review_pipeline import ReviewWorkflow, find_latest_report
 
     state_file = output_dir / "items.json"
     if not state_file.exists():
         console.print("[red]No items.json found. Run 'process' first.[/red]")
         sys.exit(1)
 
-    items_data: list[dict[str, Any]] = json.loads(state_file.read_text(encoding="utf-8"))
-    item_data = next((d for d in items_data if d["id"] == item_id), None)
-    if not item_data:
-        console.print(f"[red]Item '{item_id}' not found.[/red]")
-        sys.exit(1)
-
-    from .config import DEFAULT_MARKETPLACE
-    item = Item.model_validate(item_data)
-
-    # Resolve marketplace: CLI flag overrides report value
-    effective_marketplace = marketplace or item.marketplace or DEFAULT_MARKETPLACE
-
-    # Apply schedule override to eBay options if provided
-    if schedule and item.ebay_options:
-        item.ebay_options.scheduled_start = datetime.fromisoformat(schedule)
-
-    if dry_run:
-        _print_dry_run(item, effective_marketplace)
-        return
-
-    mkt = MARKETPLACES.get(effective_marketplace)
-    if mkt is None:
-        console.print(f"[red]Unknown marketplace '{effective_marketplace}'.[/red]")
-        sys.exit(1)
-
-    if not mkt.is_available():
-        console.print(
-            f"[red]Marketplace '{effective_marketplace}' is not configured.[/red]\n"
-            "Check your .env credentials."
-        )
-        sys.exit(1)
-
-    try:
-        with _spinner(f"Posting to {effective_marketplace}…"):
-            url = mkt.post_listing(
-                item,
-                item.ebay_options if effective_marketplace == "ebay" else None,
+    # Auto-sync report edits into items.json before posting
+    latest_report = find_latest_report(output_dir)
+    if latest_report:
+        sync = ReviewWorkflow().run(output_dir=output_dir, report_path=latest_report)
+        if sync.changed_fields:
+            console.print(
+                f"[dim]Synced {sync.changed_fields} report edit(s) to items.json[/dim]"
             )
-        console.print(f"[bold green]Posted![/bold green] {url}")
 
-        for d in items_data:
-            if d["id"] == item_id:
-                d["approved"] = True
-        state_file.write_text(json.dumps(items_data, indent=2, default=str), encoding="utf-8")
+    items_data: list[dict[str, Any]] = json.loads(
+        state_file.read_text(encoding="utf-8")
+    )
 
-    except (RuntimeError, NotImplementedError) as exc:
-        console.print(f"[red]Error:[/red] {exc}")
-        sys.exit(1)
+    # Determine which items to post
+    if item_id:
+        targets = [d for d in items_data if d["id"] == item_id]
+        if not targets:
+            console.print(f"[red]Item '{item_id}' not found.[/red]")
+            sys.exit(1)
+    else:
+        targets = [d for d in items_data if d.get("approved")]
+        if not targets:
+            console.print(
+                "[yellow]No approved items to post.[/yellow] "
+                "Set [bold]Approved[/bold] to [bold]true[/bold] in the report."
+            )
+            return
+
+    posted = 0
+    failed = 0
+
+    for item_data in targets:
+        item = Item.model_validate(item_data)
+        effective_marketplace = (
+            marketplace or item.marketplace or DEFAULT_MARKETPLACE
+        )
+
+        if schedule and item.ebay_options:
+            item.ebay_options.scheduled_start = datetime.fromisoformat(schedule)
+
+        if dry_run:
+            _print_dry_run(item, effective_marketplace)
+            posted += 1
+            continue
+
+        mkt = MARKETPLACES.get(effective_marketplace)
+        if mkt is None:
+            console.print(
+                f"[red]Unknown marketplace '{effective_marketplace}' "
+                f"for item '{item.name}'.[/red]"
+            )
+            failed += 1
+            continue
+
+        if not mkt.is_available():
+            console.print(
+                f"[red]Marketplace '{effective_marketplace}' is not configured.[/red]"
+            )
+            failed += 1
+            continue
+
+        try:
+            with _spinner(f"Posting '{item.name}' to {effective_marketplace}…"):
+                url = mkt.post_listing(
+                    item,
+                    item.ebay_options if effective_marketplace == "ebay" else None,
+                )
+            console.print(f"[bold green]Posted![/bold green] {item.name} → {url}")
+            item_data["approved"] = True
+            posted += 1
+        except (RuntimeError, NotImplementedError) as exc:
+            console.print(f"[red]Error posting '{item.name}':[/red] {exc}")
+            failed += 1
+
+    # Persist state updates
+    if not dry_run and posted:
+        state_file.write_text(
+            json.dumps(items_data, indent=2, default=str), encoding="utf-8"
+        )
+
+    if len(targets) > 1:
+        console.print(
+            f"\n[bold]Done:[/bold] {posted} posted, {failed} failed."
+        )
 
 
 def _print_dry_run(item: Item, marketplace: str) -> None:

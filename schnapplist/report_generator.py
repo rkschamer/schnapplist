@@ -49,6 +49,7 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
             f"| **Brand / Model** | {item.brand or '—'} / {item.model or '—'} |",
             f"| **Suggested price** | {price_str} |",
             f"| **Marketplace** | {marketplace} |",
+            f"| **Approved** | {str(item.approved).lower()} |",
         ]
 
         # eBay-specific rows

@@ -105,6 +105,10 @@ def _parse_table_fields(table: dict[str, str]) -> dict[str, Any]:
     if mkt in ("ebay", "kleinanzeigen"):
         out["marketplace"] = mkt
 
+    approved_raw = table.get("Approved", "").strip().lower()
+    if approved_raw in ("true", "false"):
+        out["approved"] = approved_raw == "true"
+
     return out
 
 
