@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from .models import Item
+from .models import EbayListingType, Item
 
 
 def generate_report(items: list[Item], output_dir: Path) -> Path:
@@ -15,7 +15,7 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
     report_path = output_dir / f"schnapplist_report_{timestamp}.md"
 
     lines: list[str] = [
-        "# Auction Buddy — Inspection Report",
+        "# Schnapplist — Inspection Report",
         "",
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}  ",
         f"Items: {len(items)}",
@@ -29,6 +29,8 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
         price_str = f"**{price.suggested_price:.2f} {price.currency}**" if price else "_not determined_"
         range_str = f"(range {price.min_price:.2f}–{price.max_price:.2f} {price.currency})" if price else ""
 
+        marketplace = item.marketplace or "kleinanzeigen"
+
         lines += [
             f"## {item.name}",
             "",
@@ -40,8 +42,22 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
             f"| **Category** | {item.category or '—'} |",
             f"| **Brand / Model** | {item.brand or '—'} / {item.model or '—'} |",
             f"| **Suggested price** | {price_str} {range_str} |",
-            "",
+            f"| **Marketplace** | {marketplace} |",
         ]
+
+        # eBay-specific rows
+        if marketplace == "ebay":
+            opts = item.ebay_options
+            lt = opts.listing_type.value if opts else EbayListingType.FIXED.value
+            dur = opts.duration_days if opts else 7
+            reserve = f"{opts.reserve_price:.2f}" if (opts and opts.reserve_price) else "—"
+            lines += [
+                f"| **eBay listing type** | {lt} |",
+                f"| **eBay duration (days)** | {dur} |",
+                f"| **eBay reserve price (EUR)** | {reserve} |",
+            ]
+
+        lines.append("")
 
         if item.description:
             lines += [

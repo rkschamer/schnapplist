@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import uuid
-from enum import Enum
+from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
 
-class ItemCondition(str, Enum):
+class ItemCondition(StrEnum):
     NEW = "new"
     LIKE_NEW = "like_new"
     GOOD = "good"
@@ -38,7 +38,7 @@ class ItemCondition(str, Enum):
 
 class Photo(BaseModel):
     original_path: Path
-    enhanced_path: Optional[Path] = None
+    enhanced_path: Path | None = None
 
     @property
     def display_path(self) -> Path:
@@ -53,6 +53,21 @@ class PriceInfo(BaseModel):
     reasoning: str
 
 
+# eBay listing options must be defined before Item references them.
+
+class EbayListingType(StrEnum):
+    AUCTION = "auction"    # Chinese auction (starting bid)
+    FIXED   = "fixed"      # Buy It Now
+    BOTH    = "both"       # Fixed price + Best Offer enabled
+
+
+class EbayListingOptions(BaseModel):
+    listing_type: EbayListingType = EbayListingType.FIXED
+    reserve_price: float | None = None      # auction only
+    duration_days: int = 7                     # 1, 3, 5, 7, or 10
+    scheduled_start: datetime | None = None
+
+
 class Item(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     name: str
@@ -60,9 +75,11 @@ class Item(BaseModel):
     description: str
     condition: ItemCondition
     photos: list[Photo]
-    price_info: Optional[PriceInfo] = None
+    price_info: PriceInfo | None = None
     approved: bool = False
     tags: list[str] = []
-    category: Optional[str] = None
-    brand: Optional[str] = None
-    model: Optional[str] = None
+    category: str | None = None
+    brand: str | None = None
+    model: str | None = None
+    marketplace: str | None = None          # "ebay" | "kleinanzeigen"
+    ebay_options: EbayListingOptions | None = None

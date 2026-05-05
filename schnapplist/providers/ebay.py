@@ -1,4 +1,4 @@
-"""eBay provider via the eBay Trading API (AddItem call).
+"""eBay marketplace via the eBay Trading API (AddItem call).
 
 Requires: EBAY_APP_ID and EBAY_AUTH_TOKEN in .env
 Set EBAY_SANDBOX=true to use the sandbox environment for testing.
@@ -9,13 +9,12 @@ eBay API docs: https://developer.ebay.com/api-docs/user-guides/static/trading-us
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
 import requests
 
 from ..config import EBAY_APP_ID, EBAY_AUTH_TOKEN, EBAY_SANDBOX
-from ..models import Item
-from .base import BaseProvider
+from ..models import EbayListingOptions, EbayListingType, Item
+from .base import BaseMarketplace
 
 _TRADING_API_LIVE = "https://api.ebay.com/ws/api.dll"
 _TRADING_API_SANDBOX = "https://api.sandbox.ebay.com/ws/api.dll"
@@ -32,28 +31,34 @@ _CATEGORY_IDS: dict[str, str] = {
     "Other": "99",
 }
 
+_VALID_DURATIONS = {1, 3, 5, 7, 10}
 
-class EbayProvider(BaseProvider):
+
+class EbayMarketplace(BaseMarketplace):
     name = "ebay"
 
     def is_available(self) -> bool:
         return bool(EBAY_APP_ID and EBAY_AUTH_TOKEN)
 
-    def post_listing(self, item: Item) -> str:
-        """Post an eBay fixed-price listing and return the item URL."""
+    def post_listing(self, item: Item, options: EbayListingOptions | None = None) -> str:
+        """Post an eBay listing and return the item URL."""
         if not self.is_available():
             raise RuntimeError(
                 "eBay credentials missing. Set EBAY_APP_ID and EBAY_AUTH_TOKEN in .env"
             )
 
+        opts = options or EbayListingOptions()
         endpoint = _TRADING_API_SANDBOX if EBAY_SANDBOX else _TRADING_API_LIVE
 
         category_id = _CATEGORY_IDS.get(item.category or "Other", "99")
-        price = item.price_info.suggested_price if item.price_info else 9.99
+        base_price = item.price_info.suggested_price if item.price_info else 9.99
         condition_id = item.condition.to_ebay_condition()
         title = (item.title_de or item.name)[:80]
+        duration = opts.duration_days if opts.duration_days in _VALID_DURATIONS else 7
 
-        # Build XML payload for AddItem
+        listing_type_xml, extra_xml = _build_listing_type_xml(opts, base_price)
+        schedule_xml = _build_schedule_xml(opts)
+
         xml_body = f"""<?xml version="1.0" encoding="utf-8"?>
 <AddItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
   <RequesterCredentials>
@@ -63,14 +68,16 @@ class EbayProvider(BaseProvider):
     <Title>{_xml_escape(title)}</Title>
     <Description><![CDATA[{item.description}]]></Description>
     <PrimaryCategory><CategoryID>{category_id}</CategoryID></PrimaryCategory>
-    <StartPrice>{price:.2f}</StartPrice>
+    <StartPrice>{base_price:.2f}</StartPrice>
     <CategoryMappingAllowed>true</CategoryMappingAllowed>
     <ConditionID>{condition_id}</ConditionID>
     <Country>DE</Country>
     <Currency>EUR</Currency>
     <DispatchTimeMax>3</DispatchTimeMax>
-    <ListingDuration>Days_30</ListingDuration>
-    <ListingType>FixedPriceItem</ListingType>
+    <ListingDuration>Days_{duration}</ListingDuration>
+    {listing_type_xml}
+    {extra_xml}
+    {schedule_xml}
     <Quantity>1</Quantity>
     <ShippingDetails>
       <ShippingType>Flat</ShippingType>
@@ -107,6 +114,33 @@ class EbayProvider(BaseProvider):
         item_id = root.findtext("ns:ItemID", namespaces=ns)
         domain = "sandbox.ebay.de" if EBAY_SANDBOX else "ebay.de"
         return f"https://www.{domain}/itm/{item_id}"
+
+
+# ---------------------------------------------------------------------------
+# XML helpers
+# ---------------------------------------------------------------------------
+
+def _build_listing_type_xml(opts: EbayListingOptions, price: float) -> tuple[str, str]:
+    """Return (ListingType element, extra elements) for the given options."""
+    if opts.listing_type == EbayListingType.AUCTION:
+        reserve = (
+            f"<ReservePrice>{opts.reserve_price:.2f}</ReservePrice>"
+            if opts.reserve_price else ""
+        )
+        return "<ListingType>Chinese</ListingType>", reserve
+    if opts.listing_type == EbayListingType.BOTH:
+        return (
+            "<ListingType>FixedPriceItem</ListingType>",
+            "<BestOfferDetails><BestOfferEnabled>true</BestOfferEnabled></BestOfferDetails>",
+        )
+    # Default: FIXED
+    return "<ListingType>FixedPriceItem</ListingType>", ""
+
+
+def _build_schedule_xml(opts: EbayListingOptions) -> str:
+    if opts.scheduled_start is None:
+        return ""
+    return f"<ScheduleTime>{opts.scheduled_start.isoformat()}</ScheduleTime>"
 
 
 def _xml_escape(text: str) -> str:

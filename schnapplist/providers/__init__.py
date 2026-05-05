@@ -1,9 +1,9 @@
-"""Provider registry."""
+"""Marketplace registry."""
 
-from .ebay import EbayProvider
-from .kleinanzeigen import KleinanzeigenProvider
+from .ebay import EbayMarketplace
+from .kleinanzeigen import KleinanzeigenMarketplace
 
-PROVIDERS: dict = {
-    "kleinanzeigen": KleinanzeigenProvider(),
-    "ebay": EbayProvider(),
+MARKETPLACES: dict = {
+    "kleinanzeigen": KleinanzeigenMarketplace(),
+    "ebay": EbayMarketplace(),
 }

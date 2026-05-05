@@ -301,7 +301,7 @@ def _get_enhancement_feedback(
         return None
 
 
-def _apply_enhancement(source: Path, params: JsonDict) -> "Image.Image":
+def _apply_enhancement(source: Path, params: JsonDict) -> Image.Image:
     img: Image.Image = Image.open(source)
     if img.mode == "RGBA":
         background = Image.new("RGB", img.size, (255, 255, 255))

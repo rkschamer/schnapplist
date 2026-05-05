@@ -138,9 +138,7 @@ def _extract_text_from_response(response: Any) -> str:
     if isinstance(content, list):
         parts: list[str] = []
         for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                parts.append(str(item.get("text", "")))
-            elif isinstance(item, dict) and "text" in item:
+            if isinstance(item, dict) and item.get("type") == "text" or isinstance(item, dict) and "text" in item:
                 parts.append(str(item.get("text", "")))
             else:
                 parts.append(str(item))

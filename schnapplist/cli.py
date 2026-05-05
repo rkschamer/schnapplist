@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -114,9 +116,100 @@ def process(
 
     console.print(f"\n[bold green]Report:[/bold green] {report_path}")
     console.print(f"[bold green]State:[/bold green]  {state_file}")
+
+    # Offer inline review
+    if click.confirm("\nReview and edit the report now?", default=True):
+        _run_review(output_dir, report_path)
+
     console.print(
-        "\nReview the report, then run [bold]auction-buddy post[/bold] to create listings."
+        "\nWhen ready, run [bold]schnapplist post[/bold] to create listings."
     )
+
+
+# ---------------------------------------------------------------------------
+# review
+# ---------------------------------------------------------------------------
+
+@main.command()
+@click.option("--output-dir", "-o", default="./output", type=click.Path(path_type=Path), show_default=True)
+@click.option("--report", default=None, type=click.Path(path_type=Path), help="Explicit report path (default: most recent).")
+def review(output_dir: Path, report: Path | None) -> None:
+    """Open the Markdown report in $EDITOR and sync edits back to items.json."""
+    report_path = Path(report) if report else _find_latest_report(output_dir)
+    if report_path is None:
+        console.print("[yellow]No report found. Run 'process' first.[/yellow]")
+        sys.exit(1)
+    _run_review(output_dir, report_path)
+
+
+def _find_latest_report(output_dir: Path) -> Path | None:
+    candidates = sorted(output_dir.glob("schnapplist_report_*.md"), reverse=True)
+    return candidates[0] if candidates else None
+
+
+def _run_review(output_dir: Path, report_path: Path) -> None:
+    """Open report in $EDITOR, then parse edits back to items.json."""
+    from .report_parser import parse_report
+
+    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or _find_fallback_editor()
+    console.print(f"Opening [bold]{report_path}[/bold] in [cyan]{editor}[/cyan] …")
+    subprocess.run([editor, str(report_path)], check=False)
+
+    state_file = output_dir / "items.json"
+    if not state_file.exists():
+        console.print("[yellow]items.json not found — cannot sync edits.[/yellow]")
+        return
+
+    diffs = parse_report(report_path)
+    if not diffs:
+        console.print("[yellow]No parseable item sections found in report.[/yellow]")
+        return
+
+    items_data: list[dict] = json.loads(state_file.read_text(encoding="utf-8"))
+    index = {d["id"]: d for d in items_data}
+    changed = 0
+
+    for diff in diffs:
+        item_id = diff.get("id")
+        if not item_id or item_id not in index:
+            continue
+        existing = index[item_id]
+        for key, new_val in diff.items():
+            if key == "id":
+                continue
+            if key == "suggested_price":
+                if (
+                    "price_info" in existing
+                    and existing["price_info"]
+                    and existing["price_info"].get("suggested_price") != new_val
+                ):
+                    existing["price_info"]["suggested_price"] = new_val
+                    changed += 1
+            elif key == "ebay_options":
+                # Merge into existing ebay_options sub-dict
+                if "ebay_options" not in existing or not existing["ebay_options"]:
+                    existing["ebay_options"] = {}
+                for opt_key, opt_val in new_val.items():
+                    if existing["ebay_options"].get(opt_key) != opt_val:
+                        existing["ebay_options"][opt_key] = opt_val
+                        changed += 1
+            elif existing.get(key) != new_val:
+                existing[key] = new_val
+                changed += 1
+
+    state_file.write_text(
+        json.dumps(items_data, indent=2, default=str),
+        encoding="utf-8",
+    )
+    console.print(f"[green]✓[/green] Synced [bold]{changed}[/bold] field change(s) to {state_file}")
+
+
+def _find_fallback_editor() -> str:
+    for candidate in ("nano", "vi", "notepad"):
+        result = subprocess.run(["which", candidate], capture_output=True, text=True)
+        if result.returncode == 0:
+            return candidate
+    return "vi"
 
 
 # ---------------------------------------------------------------------------
@@ -168,16 +261,28 @@ def list_items(output_dir: Path) -> None:
 @click.option("--output-dir", "-o", default="./output", type=click.Path(path_type=Path), show_default=True)
 @click.option("--item-id", "-i", required=True, help="Item ID to post (see 'list' command).")
 @click.option(
-    "--provider", "-p",
+    "--marketplace", "-m",
     type=click.Choice(["kleinanzeigen", "ebay"]),
-    required=True,
-    help="Marketplace to post on.",
+    default=None,
+    help="Override the marketplace set in the report (default: use report value).",
 )
+@click.option("--schedule", default=None, help="eBay scheduled start (ISO 8601, e.g. 2026-05-10T18:00:00).")
 @click.option("--dry-run", is_flag=True, default=False, help="Print what would be posted without actually posting.")
-def post(output_dir: Path, item_id: str, provider: str, dry_run: bool) -> None:
-    """Post an item to a marketplace."""
+def post(
+    output_dir: Path,
+    item_id: str,
+    marketplace: str | None,
+    schedule: str | None,
+    dry_run: bool,
+) -> None:
+    """Post an item to a marketplace.
+
+    Marketplace and eBay options (listing type, duration, reserve price) are
+    read from items.json (set by the LLM and editable in the Markdown report).
+    Use --marketplace to override the marketplace from the report.
+    """
     from .models import Item
-    from .providers import PROVIDERS
+    from .providers import MARKETPLACES
 
     state_file = output_dir / "items.json"
     if not state_file.exists():
@@ -192,33 +297,34 @@ def post(output_dir: Path, item_id: str, provider: str, dry_run: bool) -> None:
 
     item = Item.model_validate(item_data)
 
+    # Resolve marketplace: CLI flag overrides report value
+    effective_marketplace = marketplace or item.marketplace or "kleinanzeigen"
+
+    # Apply schedule override to eBay options if provided
+    if schedule and item.ebay_options:
+        item.ebay_options.scheduled_start = datetime.fromisoformat(schedule)
+
     if dry_run:
-        console.print(f"[yellow][DRY RUN][/yellow] Would post to [bold]{provider}[/bold]:")
-        console.print(f"  Title:     {item.title_de or item.name}")
-        console.print(f"  Condition: {item.condition.to_german()}")
-        if item.price_info:
-            console.print(f"  Price:     {item.price_info.suggested_price:.2f} EUR")
-        console.print(f"  Photos:    {len(item.photos)}")
+        _print_dry_run(item, effective_marketplace)
         return
 
-    prov = PROVIDERS.get(provider)
-    if prov is None:
-        console.print(f"[red]Unknown provider '{provider}'.[/red]")
+    mkt = MARKETPLACES.get(effective_marketplace)
+    if mkt is None:
+        console.print(f"[red]Unknown marketplace '{effective_marketplace}'.[/red]")
         sys.exit(1)
 
-    if not prov.is_available():
+    if not mkt.is_available():
         console.print(
-            f"[red]Provider '{provider}' is not configured.[/red]\n"
+            f"[red]Marketplace '{effective_marketplace}' is not configured.[/red]\n"
             "Check your .env credentials."
         )
         sys.exit(1)
 
     try:
-        with _spinner(f"Posting to {provider}…"):
-            url = prov.post_listing(item)
+        with _spinner(f"Posting to {effective_marketplace}…"):
+            url = mkt.post_listing(item, item.ebay_options if effective_marketplace == "ebay" else None)
         console.print(f"[bold green]Posted![/bold green] {url}")
 
-        # Mark as approved in state file
         for d in items_data:
             if d["id"] == item_id:
                 d["approved"] = True
@@ -227,6 +333,24 @@ def post(output_dir: Path, item_id: str, provider: str, dry_run: bool) -> None:
     except (RuntimeError, NotImplementedError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         sys.exit(1)
+
+
+def _print_dry_run(item, marketplace: str) -> None:
+    ebay_opts = item.ebay_options
+    console.print(f"[yellow][DRY RUN][/yellow] Would post to [bold]{marketplace}[/bold]:")
+    console.print(f"  Title:     {item.title_de or item.name}")
+    console.print(f"  Condition: {item.condition.to_german()}")
+    if item.price_info:
+        console.print(f"  Price:     {item.price_info.suggested_price:.2f} EUR")
+    console.print(f"  Photos:    {len(item.photos)}")
+    if marketplace == "ebay" and ebay_opts:
+        console.print(f"  Listing type: {ebay_opts.listing_type.value}")
+        if ebay_opts.reserve_price:
+            console.print(f"  Reserve:      {ebay_opts.reserve_price:.2f} EUR")
+        console.print(f"  Duration:     {ebay_opts.duration_days} days")
+        if ebay_opts.scheduled_start:
+            console.print(f"  Scheduled:    {ebay_opts.scheduled_start.isoformat()}")
+
 
 
 # ---------------------------------------------------------------------------

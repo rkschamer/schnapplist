@@ -12,7 +12,7 @@ from PIL import Image
 
 from .config import API_IMAGE_MAX_PX
 from .llm import LLMClient
-from .models import Item, ItemCondition, Photo
+from .models import EbayListingOptions, EbayListingType, Item, ItemCondition, Photo
 
 _SYSTEM_PROMPT = """\
 You are an expert at identifying second-hand items for resale on German marketplaces \
@@ -42,7 +42,7 @@ def analyze_item(photos: list[Path], client: LLMClient) -> JsonDict:
     content.append({
         "type": "text",
         "text": (
-            "Analyze these photos of an item being prepared for resale.\n\n"
+            "Analyze these photos of an item being prepared for resale on German marketplaces.\n\n"
             "Return ONLY a JSON object with these fields:\n"
             "{\n"
             '  "name": "Brand Model (English, concise)",\n'
@@ -53,11 +53,22 @@ def analyze_item(photos: list[Path], client: LLMClient) -> JsonDict:
             '  "keywords": ["search keyword 1", "keyword 2"],\n'
             '  "category": "Electronics|Clothing|Books|Toys|Furniture|Sports|Kitchen|Garden|Other",\n'
             '  "brand": "brand name or null",\n'
-            '  "model": "model name or null"\n'
+            '  "model": "model name or null",\n'
+            '  "marketplace": "ebay|kleinanzeigen",\n'
+            '  "ebay_listing_type": "auction|fixed|both",\n'
+            '  "ebay_duration_days": 7,\n'
+            '  "ebay_reserve_price": null\n'
             "}\n\n"
             "Condition guide: new=unused/sealed, like_new=barely used/no visible wear, "
             "good=light wear/fully functional, acceptable=noticeable wear/functional, "
-            "poor=heavy wear/defects."
+            "poor=heavy wear/defects.\n\n"
+            "Marketplace guide: prefer 'ebay' for electronics, collectibles, brand items with "
+            "broad appeal; prefer 'kleinanzeigen' for bulky/local items (furniture, appliances) "
+            "or items where local pickup is practical.\n\n"
+            "eBay listing type guide: 'auction' for rare/collectible items or unknown value; "
+            "'fixed' for items with predictable market price; 'both' (fixed + best offer) for "
+            "items where you'd accept reasonable offers. Set ebay_reserve_price only for auctions "
+            "where you need a minimum — use the lower end of the fair market price range."
         ),
     })
 
@@ -82,7 +93,7 @@ def build_item(analysis: JsonDict, photos: list[Path], enhanced_paths: list[Path
     """Construct an Item from raw analysis dict and photo paths."""
     photo_models = [
         Photo(original_path=orig, enhanced_path=enh)
-        for orig, enh in zip(photos, enhanced_paths)
+        for orig, enh in zip(photos, enhanced_paths, strict=False)
     ]
 
     condition_raw = analysis.get("condition", "good")
@@ -90,6 +101,26 @@ def build_item(analysis: JsonDict, photos: list[Path], enhanced_paths: list[Path
         condition = ItemCondition(condition_raw)
     except ValueError:
         condition = ItemCondition.GOOD
+
+    # Build eBay options from LLM suggestions
+    ebay_opts: EbayListingOptions | None = None
+    marketplace = analysis.get("marketplace") or "kleinanzeigen"
+    if marketplace == "ebay":
+        lt_raw = analysis.get("ebay_listing_type", "fixed")
+        try:
+            listing_type = EbayListingType(lt_raw)
+        except ValueError:
+            listing_type = EbayListingType.FIXED
+        duration = int(analysis.get("ebay_duration_days") or 7)
+        if duration not in (1, 3, 5, 7, 10):
+            duration = 7
+        reserve_raw = analysis.get("ebay_reserve_price")
+        reserve = float(reserve_raw) if reserve_raw else None
+        ebay_opts = EbayListingOptions(
+            listing_type=listing_type,
+            duration_days=duration,
+            reserve_price=reserve,
+        )
 
     return Item(
         name=analysis.get("name", "Unknown Item"),
@@ -101,4 +132,6 @@ def build_item(analysis: JsonDict, photos: list[Path], enhanced_paths: list[Path
         category=analysis.get("category"),
         brand=analysis.get("brand"),
         model=analysis.get("model"),
+        marketplace=marketplace,
+        ebay_options=ebay_opts,
     )

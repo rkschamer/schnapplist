@@ -9,18 +9,18 @@ from __future__ import annotations
 
 from ..config import KLEINANZEIGEN_EMAIL, KLEINANZEIGEN_PASSWORD
 from ..models import Item
-from .base import BaseProvider
+from .base import BaseMarketplace
 
 _BASE_URL = "https://www.kleinanzeigen.de"
 
 
-class KleinanzeigenProvider(BaseProvider):
+class KleinanzeigenMarketplace(BaseMarketplace):
     name = "kleinanzeigen"
 
     def is_available(self) -> bool:
         return bool(KLEINANZEIGEN_EMAIL and KLEINANZEIGEN_PASSWORD)
 
-    def post_listing(self, item: Item) -> str:
+    def post_listing(self, item: Item, options=None) -> str:
         """Post item to Kleinanzeigen and return the listing URL."""
         try:
             from playwright.sync_api import sync_playwright
