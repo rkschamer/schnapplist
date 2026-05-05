@@ -36,7 +36,6 @@ def _load_toml() -> dict[str, Any]:
 _toml = _load_toml()
 _listing = _toml.get("listing", {})
 _llm = _toml.get("llm", {})
-_workflow = _toml.get("workflow", {})
 
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -70,7 +69,3 @@ LISTING_DISCLAIMER: str = _listing.get("disclaimer", "").strip()
 
 # Default marketplace when the LLM does not suggest one.
 DEFAULT_MARKETPLACE: str = _listing.get("default_marketplace", "kleinanzeigen")
-
-# Workflow engine for posting orchestration.
-# Supported: "legacy" (default), "pydanticai", "mcp".
-WORKFLOW_ENGINE: str = os.getenv("WORKFLOW_ENGINE") or _workflow.get("engine", "legacy")

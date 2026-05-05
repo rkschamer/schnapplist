@@ -402,7 +402,6 @@ def config_show() -> None:
         OLLAMA_HOST,
         OLLAMA_MODEL,
         TOML_USER_PATH,
-        WORKFLOW_ENGINE,
         _find_toml,
     )
 
@@ -425,7 +424,6 @@ def config_show() -> None:
     t.add_row("[llm] model", CLAUDE_MODEL if LLM_PROVIDER == "anthropic" else OLLAMA_MODEL)
     if LLM_PROVIDER == "ollama":
         t.add_row("[llm] ollama_host", OLLAMA_HOST)
-    t.add_row("[workflow] engine", WORKFLOW_ENGINE)
     t.add_row("[listing] default_marketplace", DEFAULT_MARKETPLACE)
     disclaimer_preview = (
         (LISTING_DISCLAIMER[:60] + "…")

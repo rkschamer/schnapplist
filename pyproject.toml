@@ -17,9 +17,6 @@ dependencies = [
     "platformdirs>=4.0.0",
 ]
 
-[project.optional-dependencies]
-playwright = ["playwright>=1.40.0"]
-
 [project.scripts]
 schnapplist = "schnapplist.cli:main"
 
