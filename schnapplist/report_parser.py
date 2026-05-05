@@ -1,9 +1,7 @@
-"""Parse an edited Schnapplist Markdown report back to item field diffs.
+"""Parse an edited Schnapplist Markdown report back to item dicts.
 
-Only the fields the user is expected to edit are extracted:
-  name, title_de, description, tags, category, brand, model,
-  price_info.suggested_price, marketplace,
-  ebay_options (listing_type, duration_days, reserve_price)
+Extracts all fields needed to reconstruct Item objects from the report alone,
+making the markdown report the single source of truth.
 
 The ID row in the table is the anchor — it is never editable.
 """
@@ -109,7 +107,40 @@ def _parse_table_fields(table: dict[str, str]) -> dict[str, Any]:
     if approved_raw in ("true", "false"):
         out["approved"] = approved_raw == "true"
 
+    condition_cell = table.get("Condition", "").strip()
+    if condition_cell and condition_cell != "—":
+        cond = _parse_condition(condition_cell)
+        if cond:
+            out["condition"] = cond
+
     return out
+
+
+_GERMAN_TO_CONDITION = {
+    "neu": "new",
+    "wie neu": "like_new",
+    "gut": "good",
+    "akzeptabel": "acceptable",
+    "schlecht": "poor",
+    "beschädigt": "poor",
+}
+
+
+def _parse_condition(cell: str) -> str | None:
+    """Reverse-map condition from report format like 'Like New (Wie neu)'."""
+    m = re.search(r"\(([^)]+)\)", cell)
+    if m:
+        german = m.group(1).strip().lower()
+        return _GERMAN_TO_CONDITION.get(german)
+    # Fallback: try English label directly
+    english_map = {
+        "new": "new",
+        "like new": "like_new",
+        "good": "good",
+        "acceptable": "acceptable",
+        "poor": "poor",
+    }
+    return english_map.get(cell.lower())
 
 
 def _parse_ebay_options(table: dict[str, str]) -> dict[str, Any]:
@@ -135,7 +166,7 @@ def _parse_ebay_options(table: dict[str, str]) -> dict[str, Any]:
 
 
 def _parse_named_sections(section: str) -> dict[str, Any]:
-    """Extract #### Beschreibung and #### Tags from an item section."""
+    """Extract #### Beschreibung, #### Tags, and #### Fotos from an item section."""
     out: dict[str, Any] = {}
 
     m = re.search(
@@ -158,5 +189,16 @@ def _parse_named_sections(section: str) -> dict[str, Any]:
         tags = [t.strip().strip("`") for t in tags_raw.split(",") if t.strip()]
         if tags:
             out["tags"] = tags
+
+    m = re.search(
+        r"#{3,4}\s+Fotos\s*\n(.*?)(?=\n#{3,4}|\n---|\n>|\Z)",
+        section,
+        re.DOTALL,
+    )
+    if m:
+        photos_raw = m.group(1).strip()
+        photo_paths = re.findall(r"!\[.*?\]\((.+?)\)", photos_raw)
+        if photo_paths:
+            out["photo_paths"] = photo_paths
 
     return out

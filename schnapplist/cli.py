@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .models import Item
+    from .models import Item, Photo
 
 import click
 from rich.console import Console
@@ -287,38 +287,73 @@ def post(
 
     If --item-id is given, posts that single item.
     Otherwise, posts all approved items (set Approved to true in the report).
+
+    Items are read directly from the latest Markdown report.
     """
     from .config import DEFAULT_MARKETPLACE
-    from .models import Item
+    from .models import Item, ItemCondition
     from .providers import MARKETPLACES
-    from .workflows.review_pipeline import ReviewWorkflow, find_latest_report
+    from .report_parser import parse_report
+    from .workflows.review_pipeline import find_latest_report
 
-    state_file = output_dir / "items.json"
-    if not state_file.exists():
-        console.print("[red]No items.json found. Run 'process' first.[/red]")
+    latest_report = find_latest_report(output_dir)
+    if not latest_report:
+        console.print("[red]No report found. Run 'process' first.[/red]")
         sys.exit(1)
 
-    # Auto-sync report edits into items.json before posting
-    latest_report = find_latest_report(output_dir)
-    if latest_report:
-        sync = ReviewWorkflow().run(output_dir=output_dir, report_path=latest_report)
-        if sync.changed_fields:
-            console.print(
-                f"[dim]Synced {sync.changed_fields} report edit(s) to items.json[/dim]"
-            )
+    parsed_items = parse_report(latest_report)
+    if not parsed_items:
+        console.print("[red]No items found in report.[/red]")
+        sys.exit(1)
 
-    items_data: list[dict[str, Any]] = json.loads(
-        state_file.read_text(encoding="utf-8")
-    )
+    # Build Item objects from parsed report data
+    items: list[Item] = []
+    for data in parsed_items:
+        photos = _resolve_photos(data.pop("photo_paths", []), output_dir)
+        price_info = None
+        if "suggested_price" in data:
+            from .models import PriceInfo
+
+            price_info = PriceInfo(
+                suggested_price=data.pop("suggested_price"),
+                min_price=0,
+                max_price=0,
+                reasoning="",
+            )
+        ebay_options = None
+        if "ebay_options" in data:
+            from .models import EbayListingOptions
+
+            ebay_options = EbayListingOptions(**data.pop("ebay_options"))
+
+        condition = data.pop("condition", "good")
+        items.append(
+            Item(
+                id=data.get("id", ""),
+                name=data.get("name", ""),
+                title_de=data.get("title_de", ""),
+                description=data.get("description", ""),
+                condition=ItemCondition(condition),
+                photos=photos,
+                price_info=price_info,
+                approved=data.get("approved", False),
+                tags=data.get("tags", []),
+                category=data.get("category"),
+                brand=data.get("brand"),
+                model=data.get("model"),
+                marketplace=data.get("marketplace"),
+                ebay_options=ebay_options,
+            )
+        )
 
     # Determine which items to post
     if item_id:
-        targets = [d for d in items_data if d["id"] == item_id]
+        targets = [it for it in items if it.id == item_id]
         if not targets:
-            console.print(f"[red]Item '{item_id}' not found.[/red]")
+            console.print(f"[red]Item '{item_id}' not found in report.[/red]")
             sys.exit(1)
     else:
-        targets = [d for d in items_data if d.get("approved")]
+        targets = [it for it in items if it.approved]
         if not targets:
             console.print(
                 "[yellow]No approved items to post.[/yellow] "
@@ -329,8 +364,7 @@ def post(
     posted = 0
     failed = 0
 
-    for item_data in targets:
-        item = Item.model_validate(item_data)
+    for item in targets:
         effective_marketplace = (
             marketplace or item.marketplace or DEFAULT_MARKETPLACE
         )
@@ -354,7 +388,8 @@ def post(
 
         if not mkt.is_available():
             console.print(
-                f"[red]Marketplace '{effective_marketplace}' is not configured.[/red]"
+                f"[red]Marketplace '{effective_marketplace}' "
+                "is not configured.[/red]"
             )
             failed += 1
             continue
@@ -366,22 +401,29 @@ def post(
                     item.ebay_options if effective_marketplace == "ebay" else None,
                 )
             console.print(f"[bold green]Posted![/bold green] {item.name} → {url}")
-            item_data["approved"] = True
             posted += 1
         except (RuntimeError, NotImplementedError) as exc:
             console.print(f"[red]Error posting '{item.name}':[/red] {exc}")
             failed += 1
 
-    # Persist state updates
-    if not dry_run and posted:
-        state_file.write_text(
-            json.dumps(items_data, indent=2, default=str), encoding="utf-8"
-        )
-
     if len(targets) > 1:
         console.print(
             f"\n[bold]Done:[/bold] {posted} posted, {failed} failed."
         )
+
+
+def _resolve_photos(paths: list[str], output_dir: Path) -> list[Photo]:
+    """Convert relative photo paths from the report to Photo objects."""
+    from .models import Photo as _Photo
+
+    photos: list[_Photo] = []
+    for p in paths:
+        resolved = (output_dir / p).resolve()
+        if "enhanced" in p:
+            photos.append(_Photo(original_path=resolved, enhanced_path=resolved))
+        else:
+            photos.append(_Photo(original_path=resolved))
+    return photos
 
 
 def _print_dry_run(item: Item, marketplace: str) -> None:
