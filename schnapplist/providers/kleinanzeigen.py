@@ -2,12 +2,14 @@
 
 Kleinanzeigen has no public posting API, so we automate the web UI.
 Requires: uv sync --extra playwright && uv run playwright install chromium
-Credentials: KLEINANZEIGEN_EMAIL and KLEINANZEIGEN_PASSWORD in .env
+
+No credentials are stored — the browser opens the login page and you log in manually.
 """
 
 from __future__ import annotations
 
-from ..config import KLEINANZEIGEN_EMAIL, KLEINANZEIGEN_PASSWORD, LISTING_DISCLAIMER
+import contextlib
+
 from ..models import Item
 from .base import BaseMarketplace
 
@@ -18,51 +20,54 @@ class KleinanzeigenMarketplace(BaseMarketplace):
     name = "kleinanzeigen"
 
     def is_available(self) -> bool:
-        return bool(KLEINANZEIGEN_EMAIL and KLEINANZEIGEN_PASSWORD)
+        try:
+            import playwright  # noqa: F401
+            return True
+        except ImportError:
+            return False
 
     def post_listing(self, item: Item, options: None = None) -> str:
-        """Post item to Kleinanzeigen and return the listing URL."""
+        """Open a browser, let the user log in, then post the item."""
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:
             raise RuntimeError(
                 "Playwright is not installed. Run:\n"
-                "  pip install 'auction-buddy[playwright]'\n"
-                "  playwright install chromium"
+                "  uv sync --extra playwright\n"
+                "  uv run playwright install chromium"
             ) from exc
 
-        if not self.is_available():
-            raise RuntimeError(
-                "Kleinanzeigen credentials missing. "
-                "Set KLEINANZEIGEN_EMAIL and KLEINANZEIGEN_PASSWORD in .env"
-            )
-
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False)  # visible for manual CAPTCHA solving
+            browser = p.chromium.launch(headless=False)
             ctx = browser.new_context()
             page = ctx.new_page()
 
-            # Login
+            # Let the user log in manually
             page.goto(f"{_BASE_URL}/m-einloggen.html")
-            page.fill("#login-email", KLEINANZEIGEN_EMAIL)
-            page.fill("#login-password", KLEINANZEIGEN_PASSWORD)
-            page.click("#login-submit")
-            page.wait_for_url("**/m-meine-anzeigen.html**", timeout=30_000)
+            print(
+                "\n>>> Please log in to Kleinanzeigen in the browser window. "
+                "Posting will continue automatically once you're in. <<<\n"
+            )
+            page.wait_for_url(
+                lambda url: "einloggen" not in url and "login" not in url,
+                timeout=300_000,  # 5-minute window
+            )
 
-            # Navigate to new ad form
+            # Navigate to new listing form
             page.goto(f"{_BASE_URL}/p-anzeige-aufgeben.html")
             page.wait_for_load_state("networkidle")
 
-            # Fill category (best-effort: click first matching category tile)
+            # Fill category (best-effort)
             if item.category:
-                page.get_by_text(item.category, exact=False).first.click()
-                page.wait_for_load_state("networkidle")
+                with contextlib.suppress(Exception):
+                    page.get_by_text(item.category, exact=False).first.click()
+                    page.wait_for_load_state("networkidle")
 
             # Title
-            title = item.title_de or item.name
-            page.fill("#postad-title", title[:60])
+            page.fill("#postad-title", (item.title_de or item.name)[:60])
 
-            # Description
+            # Description with disclaimer appended
+            from ..config import LISTING_DISCLAIMER
             description = item.description
             if LISTING_DISCLAIMER:
                 description = f"{description}\n\n{LISTING_DISCLAIMER}"
@@ -72,7 +77,7 @@ class KleinanzeigenMarketplace(BaseMarketplace):
             if item.price_info:
                 page.fill("#postad-price", str(int(item.price_info.suggested_price)))
 
-            # Condition (if the field exists — depends on category)
+            # Condition (field may not exist for every category)
             condition_map = {
                 "new": "Neu",
                 "like_new": "Wie neu",
@@ -82,10 +87,8 @@ class KleinanzeigenMarketplace(BaseMarketplace):
             }
             condition_label = condition_map.get(item.condition.value)
             if condition_label:
-                try:
+                with contextlib.suppress(Exception):
                     page.get_by_label(condition_label).click()
-                except Exception:
-                    pass  # Condition field not present for this category
 
             # Upload photos
             for photo in item.photos:

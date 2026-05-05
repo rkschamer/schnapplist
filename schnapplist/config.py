@@ -43,9 +43,6 @@ EBAY_APP_ID: str = os.getenv("EBAY_APP_ID", "")
 EBAY_AUTH_TOKEN: str = os.getenv("EBAY_AUTH_TOKEN", "")
 EBAY_SANDBOX: bool = os.getenv("EBAY_SANDBOX", "false").lower() == "true"
 
-KLEINANZEIGEN_EMAIL: str = os.getenv("KLEINANZEIGEN_EMAIL", "")
-KLEINANZEIGEN_PASSWORD: str = os.getenv("KLEINANZEIGEN_PASSWORD", "")
-
 # Max pixel dimensions when encoding photos for the Claude API (keeps token cost low)
 API_IMAGE_MAX_PX = 800
 
