@@ -69,6 +69,7 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
             "--output-dir",
             str(output_dir),
             "--save-session",
+            "--allow-unrestricted-file-access",
         ],
         timeout=60,
         read_timeout=600,
@@ -94,6 +95,10 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
         "2. Pick one sub-category when it appears.\n"
         "3. Pick one sub-sub-category when it appears.\n"
         "4. Click 'Weiter' to proceed after category depth is selected.\n\n"
+        "Photo upload behavior:\n"
+        "1. Click the photo upload area/button to trigger the file chooser.\n"
+        "2. When the file chooser opens, use browser_file_upload with the absolute paths.\n"
+        "3. Upload all photos one by one or in batch.\n\n"
         f"Maximum planning/tool iterations: {max_steps}.\n"
         f"Item name: {item.name}\n"
         f"Category hint: {item.category or 'none'}\n"
@@ -101,7 +106,7 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
         f"Description:\n{payload.get('description', '')}\n"
         f"Price (EUR): {payload.get('price', '')}\n"
         f"Condition label: {payload.get('condition', '')}\n"
-        f"Photo files to upload: {json.dumps(photo_paths, ensure_ascii=True)}\n\n"
+        f"Photo files to upload (absolute paths): {json.dumps(photo_paths, ensure_ascii=True)}\n\n"
         "Navigate to https://www.kleinanzeigen.de/p-anzeige-aufgeben.html and complete everything. "
         "At the end, respond with exactly: FINAL_URL: <url>"
     )
