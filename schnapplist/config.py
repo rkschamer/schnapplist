@@ -5,20 +5,32 @@ import tomllib
 from pathlib import Path
 
 from dotenv import load_dotenv
+from platformdirs import user_config_dir
 
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# TOML config (schnapplist.toml next to pyproject.toml)
+# TOML config — searched in order, first found wins:
+#   1. ./schnapplist.toml        (repo root / project-local / dev mode)
+#   2. <user config>/schnapplist/config.toml  (installed mode, platform-specific)
 # ---------------------------------------------------------------------------
 
-_TOML_PATH = Path(__file__).parent.parent / "schnapplist.toml"
+TOML_USER_PATH = Path(user_config_dir("schnapplist")) / "config.toml"
+
+def _find_toml() -> Path | None:
+    local = Path.cwd() / "schnapplist.toml"
+    if local.exists():
+        return local
+    if TOML_USER_PATH.exists():
+        return TOML_USER_PATH
+    return None
 
 def _load_toml() -> dict:
-    if _TOML_PATH.exists():
-        with open(_TOML_PATH, "rb") as f:
-            return tomllib.load(f)
-    return {}
+    path = _find_toml()
+    if path is None:
+        return {}
+    with open(path, "rb") as f:
+        return tomllib.load(f)
 
 _toml = _load_toml()
 _listing = _toml.get("listing", {})

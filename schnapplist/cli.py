@@ -353,6 +353,73 @@ def _print_dry_run(item, marketplace: str) -> None:
             console.print(f"  Scheduled:    {ebay_opts.scheduled_start.isoformat()}")
 
 
+# ---------------------------------------------------------------------------
+# config
+# ---------------------------------------------------------------------------
+
+@main.group()
+def config() -> None:
+    """Manage schnapplist configuration."""
+
+
+@config.command("init")
+@click.option("--force", is_flag=True, default=False, help="Overwrite existing config file.")
+def config_init(force: bool) -> None:
+    """Write a starter config.toml to the user config directory."""
+    from .config import TOML_USER_PATH
+
+    if TOML_USER_PATH.exists() and not force:
+        console.print(
+            f"[yellow]Config already exists:[/yellow] {TOML_USER_PATH}\n"
+            "Run with [bold]--force[/bold] to overwrite."
+        )
+        return
+
+    template = Path(__file__).parent.parent / "schnapplist.toml"
+    if not template.exists():
+        console.print("[red]Error:[/red] schnapplist.toml template not found in package root.")
+        return
+
+    TOML_USER_PATH.parent.mkdir(parents=True, exist_ok=True)
+    TOML_USER_PATH.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+    console.print(f"[green]Config created:[/green] {TOML_USER_PATH}")
+
+
+@config.command("show")
+def config_show() -> None:
+    """Show which config file is active and its resolved settings."""
+    from .config import (
+        CLAUDE_MODEL,
+        DEFAULT_MARKETPLACE,
+        LISTING_DISCLAIMER,
+        LLM_PROVIDER,
+        OLLAMA_HOST,
+        OLLAMA_MODEL,
+        TOML_USER_PATH,
+        _find_toml,
+    )
+
+    active = _find_toml()
+    if active:
+        console.print(f"[bold]Active config:[/bold] {active}")
+    else:
+        console.print(f"[yellow]No config file found.[/yellow] Run [bold]schnapplist config init[/bold] to create one at:")
+        console.print(f"  {TOML_USER_PATH}")
+        console.print("Using built-in defaults.")
+
+    console.print()
+    t = Table(show_header=False, box=None, padding=(0, 2))
+    t.add_column(style="bold")
+    t.add_column()
+    t.add_row("[llm] provider", LLM_PROVIDER)
+    t.add_row("[llm] model", CLAUDE_MODEL if LLM_PROVIDER == "anthropic" else OLLAMA_MODEL)
+    if LLM_PROVIDER == "ollama":
+        t.add_row("[llm] ollama_host", OLLAMA_HOST)
+    t.add_row("[listing] default_marketplace", DEFAULT_MARKETPLACE)
+    t.add_row("[listing] disclaimer", (LISTING_DISCLAIMER[:60] + "…") if len(LISTING_DISCLAIMER) > 60 else (LISTING_DISCLAIMER or "—"))
+    console.print(t)
+
+
 
 # ---------------------------------------------------------------------------
 # Helpers
