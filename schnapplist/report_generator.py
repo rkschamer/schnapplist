@@ -20,6 +20,9 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}  ",
         f"Items: {len(items)}",
         "",
+        "> Fields and sections marked **_(Inserat)_** go into the marketplace listing and can be edited here.",
+        "> Sections marked **_(Recherche)_** are for your review only and will not be posted.",
+        "",
         "---",
         "",
     ]
@@ -34,6 +37,8 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
         lines += [
             f"## {item.name}",
             "",
+            "### Inserat",
+            "",
             "| Field | Value |",
             "|---|---|",
             f"| **ID** | `{item.id}` |",
@@ -41,7 +46,7 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
             f"| **Condition** | {item.condition.value.replace('_', ' ').title()} ({item.condition.to_german()}) |",
             f"| **Category** | {item.category or '—'} |",
             f"| **Brand / Model** | {item.brand or '—'} / {item.model or '—'} |",
-            f"| **Suggested price** | {price_str} {range_str} |",
+            f"| **Suggested price** | {price_str} |",
             f"| **Marketplace** | {marketplace} |",
         ]
 
@@ -61,29 +66,21 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
 
         if item.description:
             lines += [
-                "### Beschreibung",
+                "#### Beschreibung",
                 "",
                 item.description,
                 "",
             ]
 
-        if price and price.reasoning:
-            lines += [
-                "### Preis-Begründung",
-                "",
-                price.reasoning,
-                "",
-            ]
-
         if item.tags:
             lines += [
-                "### Tags",
+                "#### Tags",
                 "",
                 ", ".join(f"`{t}`" for t in item.tags),
                 "",
             ]
 
-        lines += ["### Fotos", ""]
+        lines += ["#### Fotos", ""]
         for photo in item.photos:
             display = photo.enhanced_path or photo.original_path
             try:
@@ -91,7 +88,33 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
             except ValueError:
                 rel = display
             lines.append(f"![{photo.original_path.name}]({rel})")
-        lines += ["", "---", ""]
+        lines.append("")
+
+        # --- Research section (not posted) ---
+        has_research = price and (price.reasoning or price.sources or range_str)
+        if has_research:
+            lines += [
+                "### Recherche _(wird nicht veröffentlicht)_",
+                "",
+            ]
+            if price and range_str:
+                lines.append(f"Preisspanne: {range_str}  ")
+            if price and price.reasoning:
+                lines.append(f"Begründung: {price.reasoning}  ")
+            lines.append("")
+            if price and price.sources:
+                lines.append("**Quellen:**")
+                lines.append("")
+                for src in price.sources:
+                    title = src.get("title", src.get("href", ""))
+                    href = src.get("href", "")
+                    if href:
+                        lines.append(f"- [{title}]({href})")
+                    else:
+                        lines.append(f"- {title}")
+                lines.append("")
+
+        lines += ["---", ""]
 
     report_path.write_text("\n".join(lines), encoding="utf-8")
     return report_path

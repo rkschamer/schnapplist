@@ -123,11 +123,11 @@ def _parse_item_section(section: str) -> dict | None:
 
 
 def _parse_named_sections(section: str) -> dict:
-    """Extract ### Beschreibung and ### Tags from an item section."""
+    """Extract #### Beschreibung and #### Tags from an item section."""
     out: dict = {}
 
     m = re.search(
-        r"###\s+Beschreibung\s*\n(.*?)(?=\n###|\n---|\Z)",
+        r"#{3,4}\s+Beschreibung\s*\n(.*?)(?=\n#{3,4}|\n---|\Z)",
         section,
         re.DOTALL,
     )
@@ -137,7 +137,7 @@ def _parse_named_sections(section: str) -> dict:
             out["description"] = description
 
     m = re.search(
-        r"###\s+Tags\s*\n(.*?)(?=\n###|\n---|\Z)",
+        r"#{3,4}\s+Tags\s*\n(.*?)(?=\n#{3,4}|\n---|\Z)",
         section,
         re.DOTALL,
     )

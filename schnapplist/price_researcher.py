@@ -120,4 +120,9 @@ def research_price(keywords: list[str], condition: str, client: LLMClient) -> Pr
     text = response.content[0].text
     start, end = text.find("{"), text.rfind("}") + 1
     data = cast(dict[str, Any], json.loads(text[start:end]))
+    data["sources"] = [
+        {"title": r["title"], "href": r["href"]}
+        for r in unique[:10]
+        if r.get("href")
+    ]
     return PriceInfo(**data)

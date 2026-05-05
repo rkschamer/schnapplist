@@ -51,6 +51,7 @@ class PriceInfo(BaseModel):
     max_price: float
     currency: str = "EUR"
     reasoning: str
+    sources: list[dict[str, str]] = []  # [{"title": ..., "href": ...}, ...]
 
 
 # eBay listing options must be defined before Item references them.
