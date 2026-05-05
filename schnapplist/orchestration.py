@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, TypeVar
 
 from rich.console import Console
 from rich.progress import (
@@ -34,6 +35,8 @@ from .photo_processor import (
 )
 from .price_researcher import research_price
 from .report_generator import generate_report
+
+_T = TypeVar("_T")
 
 # Stages executed per item — used to size the per-item progress bar.
 _ITEM_STAGES = ("filter", "enhance", "analyze", "price")
@@ -263,9 +266,9 @@ class ProcessOrchestrator:
     def _run_stage(
         bucket: list[StageRecord],
         stage: str,
-        fn,
-        details=None,
-    ):
+        fn: Callable[[], _T],
+        details: Callable[[_T], dict[str, Any]] | None = None,
+    ) -> _T:
         start = perf_counter()
         try:
             value = fn()

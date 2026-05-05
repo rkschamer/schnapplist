@@ -3,6 +3,7 @@
 import os
 import tomllib
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from platformdirs import user_config_dir
@@ -25,7 +26,7 @@ def _find_toml() -> Path | None:
         return TOML_USER_PATH
     return None
 
-def _load_toml() -> dict:
+def _load_toml() -> dict[str, Any]:
     path = _find_toml()
     if path is None:
         return {}

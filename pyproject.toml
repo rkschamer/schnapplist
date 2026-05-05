@@ -43,7 +43,10 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
+ignore = [
+    "ANN401",  # Dynamically typed `Any` is explicitly allowed where needed
+]
 
 [tool.ruff.format]
 quote-style = "double"

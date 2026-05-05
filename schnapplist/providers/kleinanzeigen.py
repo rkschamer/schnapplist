@@ -20,7 +20,7 @@ class KleinanzeigenMarketplace(BaseMarketplace):
     def is_available(self) -> bool:
         return bool(KLEINANZEIGEN_EMAIL and KLEINANZEIGEN_PASSWORD)
 
-    def post_listing(self, item: Item, options=None) -> str:
+    def post_listing(self, item: Item, options: None = None) -> str:
         """Post item to Kleinanzeigen and return the listing URL."""
         try:
             from playwright.sync_api import sync_playwright

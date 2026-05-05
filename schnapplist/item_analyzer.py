@@ -125,7 +125,7 @@ def build_item(analysis: JsonDict, photos: list[Path], enhanced_paths: list[Path
     return Item(
         name=analysis.get("name", "Unknown Item"),
         title_de=analysis.get("title_de", ""),
-        description=analysis.get("description_de", analysis.get("description", "")),
+        description=str(analysis.get("description_de", analysis.get("description", "")) or ""),
         condition=condition,
         photos=photo_models,
         tags=analysis.get("keywords", []),

@@ -8,6 +8,10 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from .models import Item
 
 import click
 from rich.console import Console
@@ -66,7 +70,7 @@ def main() -> None:
 @click.option(
     "--llm-model",
     default=None,
-    help="Model name (default: claude-sonnet-4-6 for Anthropic, $OLLAMA_MODEL or qwen3:14b for Ollama).",
+    help="Model name (default: claude-sonnet-4-6 for Anthropic, qwen3:14b for Ollama).",
 )
 @click.option(
     "--ollama-host",
@@ -131,8 +135,18 @@ def process(
 # ---------------------------------------------------------------------------
 
 @main.command()
-@click.option("--output-dir", "-o", default="./output", type=click.Path(path_type=Path), show_default=True)
-@click.option("--report", default=None, type=click.Path(path_type=Path), help="Explicit report path (default: most recent).")
+@click.option(
+    "--output-dir", "-o",
+    default="./output",
+    type=click.Path(path_type=Path),
+    show_default=True,
+)
+@click.option(
+    "--report",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Explicit report path (default: most recent).",
+)
 def review(output_dir: Path, report: Path | None) -> None:
     """Open the Markdown report in $EDITOR and sync edits back to items.json."""
     report_path = Path(report) if report else _find_latest_report(output_dir)
@@ -165,8 +179,8 @@ def _run_review(output_dir: Path, report_path: Path) -> None:
         console.print("[yellow]No parseable item sections found in report.[/yellow]")
         return
 
-    items_data: list[dict] = json.loads(state_file.read_text(encoding="utf-8"))
-    index = {d["id"]: d for d in items_data}
+    items_data: list[dict[str, Any]] = json.loads(state_file.read_text(encoding="utf-8"))
+    index: dict[str, dict[str, Any]] = {d["id"]: d for d in items_data}
     changed = 0
 
     for diff in diffs:
@@ -178,20 +192,17 @@ def _run_review(output_dir: Path, report_path: Path) -> None:
             if key == "id":
                 continue
             if key == "suggested_price":
-                if (
-                    "price_info" in existing
-                    and existing["price_info"]
-                    and existing["price_info"].get("suggested_price") != new_val
-                ):
-                    existing["price_info"]["suggested_price"] = new_val
+                price_info = cast(dict[str, Any], existing.get("price_info"))
+                if price_info and price_info.get("suggested_price") != new_val:
+                    price_info["suggested_price"] = new_val
                     changed += 1
             elif key == "ebay_options":
-                # Merge into existing ebay_options sub-dict
                 if "ebay_options" not in existing or not existing["ebay_options"]:
                     existing["ebay_options"] = {}
-                for opt_key, opt_val in new_val.items():
-                    if existing["ebay_options"].get(opt_key) != opt_val:
-                        existing["ebay_options"][opt_key] = opt_val
+                ebay_opts = cast(dict[str, Any], existing["ebay_options"])
+                for opt_key, opt_val in cast(dict[str, Any], new_val).items():
+                    if ebay_opts.get(opt_key) != opt_val:
+                        ebay_opts[opt_key] = opt_val
                         changed += 1
             elif existing.get(key) != new_val:
                 existing[key] = new_val
@@ -217,7 +228,12 @@ def _find_fallback_editor() -> str:
 # ---------------------------------------------------------------------------
 
 @main.command("list")
-@click.option("--output-dir", "-o", default="./output", type=click.Path(path_type=Path), show_default=True)
+@click.option(
+    "--output-dir", "-o",
+    default="./output",
+    type=click.Path(path_type=Path),
+    show_default=True,
+)
 def list_items(output_dir: Path) -> None:
     """Show all processed items and their status."""
     from .models import Item
@@ -227,7 +243,7 @@ def list_items(output_dir: Path) -> None:
         console.print("[yellow]No items found. Run 'process' first.[/yellow]")
         return
 
-    items_data: list[dict] = json.loads(state_file.read_text(encoding="utf-8"))
+    items_data: list[dict[str, Any]] = json.loads(state_file.read_text(encoding="utf-8"))
 
     table = Table(title="Processed Items", show_lines=True)
     table.add_column("ID", style="cyan", no_wrap=True)
@@ -258,7 +274,12 @@ def list_items(output_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 @main.command()
-@click.option("--output-dir", "-o", default="./output", type=click.Path(path_type=Path), show_default=True)
+@click.option(
+    "--output-dir", "-o",
+    default="./output",
+    type=click.Path(path_type=Path),
+    show_default=True,
+)
 @click.option("--item-id", "-i", required=True, help="Item ID to post (see 'list' command).")
 @click.option(
     "--marketplace", "-m",
@@ -266,8 +287,17 @@ def list_items(output_dir: Path) -> None:
     default=None,
     help="Override the marketplace set in the report (default: use report value).",
 )
-@click.option("--schedule", default=None, help="eBay scheduled start (ISO 8601, e.g. 2026-05-10T18:00:00).")
-@click.option("--dry-run", is_flag=True, default=False, help="Print what would be posted without actually posting.")
+@click.option(
+    "--schedule",
+    default=None,
+    help="eBay scheduled start (ISO 8601, e.g. 2026-05-10T18:00:00).",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Print what would be posted without actually posting.",
+)
 def post(
     output_dir: Path,
     item_id: str,
@@ -289,7 +319,7 @@ def post(
         console.print("[red]No items.json found. Run 'process' first.[/red]")
         sys.exit(1)
 
-    items_data: list[dict] = json.loads(state_file.read_text(encoding="utf-8"))
+    items_data: list[dict[str, Any]] = json.loads(state_file.read_text(encoding="utf-8"))
     item_data = next((d for d in items_data if d["id"] == item_id), None)
     if not item_data:
         console.print(f"[red]Item '{item_id}' not found.[/red]")
@@ -323,7 +353,10 @@ def post(
 
     try:
         with _spinner(f"Posting to {effective_marketplace}…"):
-            url = mkt.post_listing(item, item.ebay_options if effective_marketplace == "ebay" else None)
+            url = mkt.post_listing(
+                item,
+                item.ebay_options if effective_marketplace == "ebay" else None,
+            )
         console.print(f"[bold green]Posted![/bold green] {url}")
 
         for d in items_data:
@@ -336,7 +369,7 @@ def post(
         sys.exit(1)
 
 
-def _print_dry_run(item, marketplace: str) -> None:
+def _print_dry_run(item: Item, marketplace: str) -> None:
     ebay_opts = item.ebay_options
     console.print(f"[yellow][DRY RUN][/yellow] Would post to [bold]{marketplace}[/bold]:")
     console.print(f"  Title:     {item.title_de or item.name}")
@@ -403,7 +436,10 @@ def config_show() -> None:
     if active:
         console.print(f"[bold]Active config:[/bold] {active}")
     else:
-        console.print(f"[yellow]No config file found.[/yellow] Run [bold]schnapplist config init[/bold] to create one at:")
+        console.print(
+            "[yellow]No config file found.[/yellow] "
+            "Run [bold]schnapplist config init[/bold] to create one at:"
+        )
         console.print(f"  {TOML_USER_PATH}")
         console.print("Using built-in defaults.")
 
@@ -416,7 +452,12 @@ def config_show() -> None:
     if LLM_PROVIDER == "ollama":
         t.add_row("[llm] ollama_host", OLLAMA_HOST)
     t.add_row("[listing] default_marketplace", DEFAULT_MARKETPLACE)
-    t.add_row("[listing] disclaimer", (LISTING_DISCLAIMER[:60] + "…") if len(LISTING_DISCLAIMER) > 60 else (LISTING_DISCLAIMER or "—"))
+    disclaimer_preview = (
+        (LISTING_DISCLAIMER[:60] + "…")
+        if len(LISTING_DISCLAIMER) > 60
+        else (LISTING_DISCLAIMER or "—")
+    )
+    t.add_row("[listing] disclaimer", disclaimer_preview)
     console.print(t)
 
 
@@ -425,10 +466,10 @@ def config_show() -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _spinner(msg: str):
+def _spinner(msg: str) -> Progress:
     return Progress(SpinnerColumn(), TextColumn(msg), console=console, transient=True)
 
 
-def _item_to_dict(item) -> dict:
+def _item_to_dict(item: Item) -> dict[str, Any]:
     """Pydantic model → JSON-serialisable dict."""
     return json.loads(item.model_dump_json())
