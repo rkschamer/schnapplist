@@ -95,7 +95,7 @@ def process(
         client = LLMClient("ollama", model, ollama_host=host)
         console.print(f"Using Ollama [bold]{model}[/bold] at [cyan]{host}[/cyan]")
 
-    orchestrator = ProcessOrchestrator(client)
+    orchestrator = ProcessOrchestrator(client, console=console)
     result = orchestrator.run(
         photos_dir=photos_dir,
         output_dir=output_dir,
@@ -105,26 +105,6 @@ def process(
     if result.state.total_photos == 0:
         console.print("[yellow]No supported photos found in directory.[/yellow]")
         return
-
-    console.print(f"Found [bold]{result.state.total_photos}[/bold] photo(s)")
-
-    if single_item:
-        console.print(
-            f"Using all [bold]{result.state.total_photos}[/bold] photo(s) as one item (--single-item)"
-        )
-    else:
-        console.print(f"Identified [bold]{result.state.total_groups}[/bold] item(s)")
-
-    for idx, item in enumerate(result.items, 1):
-        console.rule(f"Item {idx}/{len(result.items)}")
-        console.print(
-            f"  [bold]{item.name}[/bold] — condition: [italic]{item.condition.value}[/italic]"
-        )
-        if item.price_info:
-            console.print(
-                f"  Price: [green]{item.price_info.suggested_price:.2f} EUR[/green] "
-                f"({item.price_info.min_price:.2f}–{item.price_info.max_price:.2f})"
-            )
 
     report_path = result.report_path
     state_file = result.state_file
