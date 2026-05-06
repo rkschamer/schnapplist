@@ -5,12 +5,18 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
+from collections.abc import AsyncIterable
 from pathlib import Path
 from typing import cast
 
 from platformdirs import user_cache_dir
 from pydantic_ai import Agent
+from pydantic_ai.agent import EventStreamHandler
 from pydantic_ai.mcp import MCPServerStdio
+from pydantic_ai.messages import AgentStreamEvent, FunctionToolCallEvent
+from pydantic_ai.tools import RunContext
+from rich.console import Console
 
 from ..config import (
     ANTHROPIC_API_KEY,
@@ -20,6 +26,59 @@ from ..config import (
     OLLAMA_MODEL,
 )
 from ..models import Item
+
+_console = Console()
+
+
+def _make_event_handler() -> EventStreamHandler[None]:
+    last_ts: list[float] = [time.monotonic()]
+
+    async def handler(
+        _ctx: RunContext[None],
+        events: AsyncIterable[AgentStreamEvent],
+    ) -> None:
+        async for event in events:
+            if isinstance(event, FunctionToolCallEvent):
+                now = time.monotonic()
+                delta, last_ts[0] = now - last_ts[0], now
+                msg = _human_readable_event(event.part.tool_name, event.part.args_as_dict())
+                _console.print(f"  [dim]·[/dim] {msg}  [dim]{_fmt_delta(delta)}[/dim]")
+
+    return handler
+
+
+def _fmt_delta(seconds: float) -> str:
+    if seconds < 60:
+        return f"+{seconds:.1f}s"
+    m, s = divmod(int(seconds), 60)
+    return f"+{m}m {s}s"
+
+
+def _human_readable_event(name: str, args: dict[str, object]) -> str:
+    if name == "browser_navigate":
+        return f"Navigating to {args.get('url', '')}"
+    if name in ("browser_snapshot", "browser_screenshot"):
+        return "Reading page"
+    if name in ("browser_click", "browser_hover"):
+        element = str(args.get("element", args.get("selector", "")))
+        label = "Hovering over" if name == "browser_hover" else "Clicking"
+        return f"{label} {element[:60]}" if element else label
+    if name in ("browser_type", "browser_fill"):
+        text = str(args.get("text", args.get("value", "")))
+        short = (text[:40] + "…") if len(text) > 40 else text
+        return f"Typing: {short}"
+    if name == "browser_select_option":
+        val = args.get("values", args.get("option", args.get("value", "")))
+        return f"Selecting: {val}"
+    if name == "browser_file_upload":
+        paths = args.get("paths", args.get("files", []))
+        count = len(paths) if isinstance(paths, list) else 1  # type: ignore[arg-type]
+        return f"Uploading {count} photo(s)"
+    if name in ("browser_wait", "browser_wait_for_visible"):
+        return "Waiting for page…"
+    if name == "browser_press_key":
+        return f"Pressing key: {args.get('key', '?')}"
+    return name.removeprefix("browser_").replace("_", " ").capitalize()
 
 
 def build_listing_payload(item: Item) -> dict[str, str | list[str]]:
@@ -60,6 +119,8 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
 
     output_dir = Path(user_cache_dir("schnapplist")) / "playwright-mcp"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    _console.print("[bold]Kleinanzeigen[/bold] [dim](browser agent)[/dim]")
 
     server = MCPServerStdio(
         "npx",
@@ -113,7 +174,7 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
         "At the end, respond with exactly: FINAL_URL: <url>"
     )
 
-    result = agent.run_sync(prompt)
+    result = agent.run_sync(prompt, event_stream_handler=_make_event_handler())
     output = str(result.output).strip()
 
     final_match = re.search(r"FINAL_URL:\s*(https?://\S+)", output, flags=re.I)

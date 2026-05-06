@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 import click
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.rule import Rule
 from rich.table import Table
 
 console = Console()
@@ -363,8 +364,12 @@ def post(
 
     posted = 0
     failed = 0
+    total = len(targets)
 
-    for item in targets:
+    if total > 1:
+        console.print(f"\nPosting [bold]{total}[/bold] items…\n")
+
+    for idx, item in enumerate(targets, 1):
         effective_marketplace = (
             marketplace or item.marketplace or DEFAULT_MARKETPLACE
         )
@@ -394,22 +399,27 @@ def post(
             failed += 1
             continue
 
+        prefix = f"[dim][{idx}/{total}][/dim] " if total > 1 else ""
+        console.print(Rule(
+            f"{prefix}[bold]{item.name}[/bold]  →  {effective_marketplace}",
+            style="dim",
+        ))
+        _print_item_details(item, effective_marketplace)
+
         try:
-            with _spinner(f"Posting '{item.name}' to {effective_marketplace}…"):
-                url = mkt.post_listing(
-                    item,
-                    item.ebay_options if effective_marketplace == "ebay" else None,
-                )
-            console.print(f"[bold green]Posted![/bold green] {item.name} → {url}")
+            url = mkt.post_listing(
+                item,
+                item.ebay_options if effective_marketplace == "ebay" else None,
+            )
+            console.print(f"\n[bold green]✓ Posted:[/bold green] {url}\n")
             posted += 1
         except (RuntimeError, NotImplementedError) as exc:
-            console.print(f"[red]Error posting '{item.name}':[/red] {exc}")
+            console.print(f"\n[red]Error posting '{item.name}':[/red] {exc}\n")
             failed += 1
 
-    if len(targets) > 1:
-        console.print(
-            f"\n[bold]Done:[/bold] {posted} posted, {failed} failed."
-        )
+    if total > 1:
+        console.print(Rule(style="dim"))
+        console.print(f"[bold]Done:[/bold] {posted} posted, {failed} failed.")
 
 
 def _resolve_photos(paths: list[str], output_dir: Path) -> list[Photo]:
@@ -424,6 +434,22 @@ def _resolve_photos(paths: list[str], output_dir: Path) -> list[Photo]:
         else:
             photos.append(_Photo(original_path=resolved))
     return photos
+
+
+def _print_item_details(item: Item, marketplace: str) -> None:
+    t = Table(show_header=False, box=None, padding=(0, 2))
+    t.add_column(style="dim", no_wrap=True)
+    t.add_column()
+    t.add_row("Title", item.title_de or item.name)
+    if item.price_info:
+        t.add_row("Price", f"{item.price_info.suggested_price:.2f} EUR")
+    t.add_row("Condition", item.condition.value.replace("_", " "))
+    t.add_row("Photos", str(len(item.photos)))
+    if marketplace == "ebay" and item.ebay_options:
+        opts = item.ebay_options
+        t.add_row("Listing", f"{opts.listing_type.value}  ·  {opts.duration_days} days")
+    console.print(t)
+    console.print()
 
 
 def _print_dry_run(item: Item, marketplace: str) -> None:

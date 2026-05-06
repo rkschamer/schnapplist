@@ -11,6 +11,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 
 import requests
+from rich.console import Console
 
 from ..config import EBAY_APP_ID, EBAY_AUTH_TOKEN, EBAY_SANDBOX, LISTING_DISCLAIMER
 from ..models import EbayListingOptions, EbayListingType, Item
@@ -18,6 +19,8 @@ from .base import BaseMarketplace
 
 _TRADING_API_LIVE = "https://api.ebay.com/ws/api.dll"
 _TRADING_API_SANDBOX = "https://api.sandbox.ebay.com/ws/api.dll"
+
+_console = Console()
 
 _CATEGORY_IDS: dict[str, str] = {
     "Electronics": "293",
@@ -103,9 +106,13 @@ class EbayMarketplace(BaseMarketplace):
             "Content-Type": "text/xml",
         }
 
-        response = requests.post(endpoint, data=xml_body.encode("utf-8"), headers=headers, timeout=30)
+        env = "sandbox" if EBAY_SANDBOX else "live"
+        _console.print(f"[bold]eBay Trading API[/bold] [dim]({env})[/dim]")
+        _console.print("  [dim]·[/dim] Calling AddItem…")
+        response = requests.post(
+            endpoint, data=xml_body.encode("utf-8"), headers=headers, timeout=30
+        )
         response.raise_for_status()
-
         root = ET.fromstring(response.text)
         ns = {"ns": "urn:ebay:apis:eBLBaseComponents"}
         ack = root.findtext("ns:Ack", namespaces=ns)
