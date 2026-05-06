@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -90,7 +89,6 @@ class ProcessRunResult:
     state: ProcessRunState
     items: list[Item]
     report_path: Path | None
-    state_file: Path | None
 
 
 class ProcessWorkflow:
@@ -135,7 +133,7 @@ class ProcessWorkflow:
 
             state.total_photos = len(photos)
             if not photos:
-                return ProcessRunResult(state=state, items=[], report_path=None, state_file=None)
+                return ProcessRunResult(state=state, items=[], report_path=None)
 
             if single_item:
                 groups = [photos]
@@ -301,28 +299,10 @@ class ProcessWorkflow:
             )
             progress.update(report_task, description="Report written", total=1, completed=1)
 
-            persist_task = progress.add_task("Saving state…", total=None)
-            state_file = output_dir / "items.json"
-            self._run_stage(
-                state.stage_records,
-                "persist_state",
-                lambda: state_file.write_text(
-                    json.dumps(
-                        [json.loads(item.model_dump_json()) for item in items],
-                        indent=2,
-                        default=str,
-                    ),
-                    encoding="utf-8",
-                ),
-                details=lambda _: {"path": str(state_file)},
-            )
-            progress.update(persist_task, description="State saved", total=1, completed=1)
-
         return ProcessRunResult(
             state=state,
             items=items,
             report_path=report_path,
-            state_file=state_file,
         )
 
     @staticmethod

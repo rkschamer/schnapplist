@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .models import Item, Photo
@@ -113,13 +112,11 @@ def process(
         return
 
     report_path = result.report_path
-    state_file = result.state_file
-    if report_path is None or state_file is None:
-        console.print("[red]Processing did not produce output files.[/red]")
+    if report_path is None:
+        console.print("[red]Processing did not produce a report.[/red]")
         sys.exit(1)
 
     console.print(f"\n[bold green]Report:[/bold green] {report_path}")
-    console.print(f"[bold green]State:[/bold green]  {state_file}")
 
     # Offer inline review
     if click.confirm("\nReview and edit the report now?", default=True):
@@ -148,39 +145,21 @@ def process(
     help="Explicit report path (default: most recent).",
 )
 def review(output_dir: Path, report: Path | None) -> None:
-    """Open the Markdown report in $EDITOR and sync edits back to items.json."""
+    """Open the Markdown report in $EDITOR."""
     from .workflows.review_pipeline import find_latest_report
 
     report_path = Path(report) if report else find_latest_report(output_dir)
     if report_path is None:
         console.print("[yellow]No report found. Run 'process' first.[/yellow]")
         sys.exit(1)
-    _run_review(output_dir, report_path)
+    _run_review(report_path)
 
 
-def _run_review(output_dir: Path, report_path: Path) -> None:
-    """Open report in $EDITOR, then parse edits back to items.json."""
-    from .workflows.review_pipeline import ReviewWorkflow
-
+def _run_review(report_path: Path) -> None:
+    """Open report in $EDITOR."""
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or _find_fallback_editor()
     console.print(f"Opening [bold]{report_path}[/bold] in [cyan]{editor}[/cyan] …")
     subprocess.run([editor, str(report_path)], check=False)
-
-    workflow = ReviewWorkflow()
-    try:
-        result = workflow.run(output_dir=output_dir, report_path=report_path)
-    except FileNotFoundError:
-        console.print("[yellow]items.json not found — cannot sync edits.[/yellow]")
-        return
-
-    if result.parsed_items == 0:
-        console.print("[yellow]No parseable item sections found in report.[/yellow]")
-        return
-
-    console.print(
-        "[green]✓[/green] Synced "
-        f"[bold]{result.changed_fields}[/bold] field change(s) to {result.state_file}"
-    )
 
 
 def _find_fallback_editor() -> str:
@@ -209,14 +188,15 @@ def _find_fallback_editor() -> str:
 )
 def list_items(output_dir: Path) -> None:
     """Show all processed items and their status."""
-    from .models import Item
+    from .report_parser import parse_report
+    from .workflows.review_pipeline import find_latest_report
 
-    state_file = output_dir / "items.json"
-    if not state_file.exists():
+    report_path = find_latest_report(output_dir)
+    if not report_path:
         console.print("[yellow]No items found. Run 'process' first.[/yellow]")
         return
 
-    items_data: list[dict[str, Any]] = json.loads(state_file.read_text(encoding="utf-8"))
+    items_data = parse_report(report_path)
 
     table = Table(title="Processed Items", show_lines=True)
     table.add_column("ID", style="cyan", no_wrap=True)
@@ -227,15 +207,17 @@ def list_items(output_dir: Path) -> None:
     table.add_column("Approved", justify="center")
 
     for data in items_data:
-        item = Item.model_validate(data)
-        price = f"{item.price_info.suggested_price:.2f}" if item.price_info else "—"
-        approved = "[green]✓[/green]" if item.approved else "[dim]—[/dim]"
+        price_raw = data.get("suggested_price")
+        price = f"{price_raw:.2f}" if price_raw is not None else "—"
+        condition_raw = data.get("condition", "")
+        condition = condition_raw.replace("_", " ") if condition_raw else "—"
+        approved = "[green]✓[/green]" if data.get("approved") else "[dim]—[/dim]"
         table.add_row(
-            item.id,
-            item.name,
-            item.condition.value.replace("_", " "),
+            data.get("id", ""),
+            data.get("name", ""),
+            condition,
             price,
-            str(len(item.photos)),
+            str(len(data.get("photo_paths", []))),
             approved,
         )
 
