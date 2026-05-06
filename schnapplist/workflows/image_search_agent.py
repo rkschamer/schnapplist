@@ -1,4 +1,4 @@
-"""Fallback identification agents: Google Lens (visual) and DuckDuckGo (text)."""
+"""Fallback identification: Google Lens (visual, MCP) and DuckDuckGo (text, direct)."""
 
 from __future__ import annotations
 
@@ -19,10 +19,11 @@ from ..config import (
     OLLAMA_HOST,
     OLLAMA_MODEL,
 )
+from ..llm import LLMClient
+from ..web_search import web_search
 
 JsonDict = dict[str, Any]
 
-_IDENTIFICATION_SENTINEL = "IDENTIFICATION:"
 _IDENTIFICATION_RULES = (
     "Respond with ONLY this line:\n"
     'IDENTIFICATION: {"name": "...", "brand": "...", "model": "..."}\n\n'
@@ -32,6 +33,11 @@ _IDENTIFICATION_RULES = (
     "- model: model number/name, e.g. 'WH-1000XM5', or null if unknown\n"
     "- If the item cannot be identified: IDENTIFICATION: {}"
 )
+
+_SYSTEM_PROMPT = """\
+You are a product identification expert. Given web search snippets, identify the exact \
+product name, brand, and model. Prefer the precise manufacturer name over generic descriptions.\
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +67,7 @@ def identify_via_google_lens(photo: Path) -> JsonDict:
         + _IDENTIFICATION_RULES
     )
 
-    output = _run_agent(
+    output = _run_lens_agent(
         prompt=prompt,
         system_prompt=(
             "You are an autonomous browser agent identifying a product using Google Lens. "
@@ -72,34 +78,69 @@ def identify_via_google_lens(photo: Path) -> JsonDict:
     return _parse_identification(output)
 
 
-def identify_via_text_search(analysis: JsonDict) -> JsonDict:
-    """Build a query from partial LLM analysis and search DuckDuckGo to identify the item.
+def identify_via_text_search(analysis: JsonDict, client: LLMClient) -> JsonDict:
+    """Search DuckDuckGo and use the LLM to verify/correct the current identification.
 
+    Uses the ddgs package directly — no browser automation needed.
     Returns a (possibly empty) dict with any of: name, brand, model.
     """
     query = _build_search_query(analysis)
     if not query:
         return {}
 
-    prompt = (
-        f"Identify the product by searching DuckDuckGo with this query: {query}\n\n"
-        "Steps:\n"
-        "1. Navigate to https://duckduckgo.com\n"
-        "2. Click the search box, type the query, and press Enter\n"
-        "3. Read the search result titles and snippets\n"
-        "4. Identify the most likely product being described\n\n"
-        + _IDENTIFICATION_RULES
+    results = web_search(query, max_results=8)
+    if not results:
+        return {}
+
+    snippets = "\n".join(
+        f"- {r['title']}: {r['body'][:200]}"
+        for r in results[:8]
     )
 
-    output = _run_agent(
-        prompt=prompt,
-        system_prompt=(
-            "You are an autonomous browser agent identifying a product via web search. "
-            "Use Playwright MCP tools only. Read search result snippets carefully and "
-            "extract the most likely product name, brand, and model."
-        ),
+    current_name  = str(analysis.get("name",  "") or "").strip()
+    current_brand = str(analysis.get("brand", "") or "").strip()
+    current_model = str(analysis.get("model", "") or "").strip()
+
+    if current_name and "unknown" not in current_name.lower():
+        context = (
+            f"Current identification to verify:\n"
+            f"  Name:  {current_name}\n"
+            f"  Brand: {current_brand or '—'}\n"
+            f"  Model: {current_model or '—'}\n\n"
+            "Correct it if the search results show a different or more precise name. "
+            "If it is already correct, return the same values."
+        )
+    else:
+        context = "The item has not been identified yet. Identify it from the search results."
+
+    prompt = (
+        f"Search query used: {query}\n\n"
+        f"Search results:\n{snippets}\n\n"
+        f"{context}\n\n"
+        "Return ONLY a JSON object:\n"
+        '{"name": "...", "brand": "...", "model": "..."}\n\n'
+        "Rules:\n"
+        "- name: full product name, e.g. 'Sony WH-1000XM5 Wireless Headphones'\n"
+        "- brand: manufacturer only, or null\n"
+        "- model: model number/name, or null\n"
+        "- If you cannot determine the product: return {}"
     )
-    return _parse_identification(output)
+
+    response = client.messages_create(
+        max_tokens=256,
+        system=[{"type": "text", "text": _SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    text = response.content[0].text
+    start, end = text.find("{"), text.rfind("}") + 1
+    if start == -1 or end == 0:
+        return {}
+    try:
+        data: JsonDict = json.loads(text[start:end])
+    except json.JSONDecodeError:
+        return {}
+    return {k: v for k, v in data.items() if v and v != "null"}
 
 
 # ---------------------------------------------------------------------------
@@ -107,31 +148,45 @@ def identify_via_text_search(analysis: JsonDict) -> JsonDict:
 # ---------------------------------------------------------------------------
 
 def _build_search_query(analysis: JsonDict) -> str:
-    """Compose a short search query from the LLM's partial analysis."""
-    parts: list[str] = []
+    """Compose a focused search query from the current analysis.
 
+    When a name is already identified: use brand + name + first keyword for context.
+    When unidentified: use keywords + category.
+    """
+    name  = str(analysis.get("name",  "") or "").strip()
+    brand = str(analysis.get("brand", "") or "").strip()
+
+    if name and "unknown" not in name.lower():
+        parts: list[str] = []
+        if brand and brand.lower() not in name.lower():
+            parts.append(brand)
+        parts.append(name)
+        keywords = analysis.get("keywords", [])
+        if isinstance(keywords, list) and keywords:
+            parts.append(str(keywords[0]))
+        return " ".join(parts[:4])
+
+    # Unidentified — fall back to keywords + category.
+    kw_parts: list[str] = []
     keywords = analysis.get("keywords", [])
     if isinstance(keywords, list):
-        parts.extend(str(k) for k in keywords[:5])
-
+        kw_parts.extend(str(k) for k in keywords[:5])
     category = str(analysis.get("category", "")).strip()
     if category and category.lower() not in ("", "other"):
-        parts.append(category.lower())
+        kw_parts.append(category.lower())
 
-    # Deduplicate while preserving order
     seen: set[str] = set()
     unique: list[str] = []
-    for p in parts:
+    for p in kw_parts:
         key = p.lower().strip()
         if key and key not in seen:
             seen.add(key)
             unique.append(p)
-
     return " ".join(unique[:6])
 
 
-def _run_agent(*, prompt: str, system_prompt: str) -> str:
-    """Spin up a Playwright MCP agent, run *prompt*, and return the raw output."""
+def _run_lens_agent(*, prompt: str, system_prompt: str) -> str:
+    """Spin up a Playwright MCP agent for Google Lens and return the raw output."""
     model_name = _resolve_model_name()
 
     output_dir = Path(user_cache_dir("schnapplist")) / "playwright-mcp"
