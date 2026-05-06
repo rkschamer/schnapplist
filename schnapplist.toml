@@ -28,4 +28,4 @@ Der Artikel wird unter Ausschluss jeglicher Gewährleistung verkauft.
 
 # Default marketplace when the LLM does not suggest one.
 # Allowed values: "kleinanzeigen" | "ebay"
-default_marketplace = "ebay"
+default_marketplace = "kleinanzeigen"

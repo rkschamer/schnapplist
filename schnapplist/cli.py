@@ -15,7 +15,6 @@ if TYPE_CHECKING:
 
 import click
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.rule import Rule
 from rich.table import Table
 
@@ -327,6 +326,12 @@ def post(
 
             ebay_options = EbayListingOptions(**data.pop("ebay_options"))
 
+        ka_options = None
+        if "ka_options" in data:
+            from .models import KleinanzeigenListingOptions
+
+            ka_options = KleinanzeigenListingOptions(**data.pop("ka_options"))
+
         condition = data.pop("condition", "good")
         items.append(
             Item(
@@ -344,6 +349,7 @@ def post(
                 model=data.get("model"),
                 marketplace=data.get("marketplace"),
                 ebay_options=ebay_options,
+                ka_options=ka_options,
             )
         )
 
@@ -542,17 +548,3 @@ def config_show() -> None:
     )
     t.add_row("[listing] disclaimer", disclaimer_preview)
     console.print(t)
-
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _spinner(msg: str) -> Progress:
-    return Progress(SpinnerColumn(), TextColumn(msg), console=console, transient=True)
-
-
-def _item_to_dict(item: Item) -> dict[str, Any]:
-    """Pydantic model → JSON-serialisable dict."""
-    return json.loads(item.model_dump_json())

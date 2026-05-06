@@ -106,6 +106,16 @@ def build_listing_payload(item: Item) -> dict[str, str | list[str]]:
     }
     if item.price_info:
         payload["price"] = str(int(item.price_info.suggested_price))
+
+    ka = item.ka_options
+    if ka:
+        if ka.ka_category:
+            payload["ka_category"] = ka.ka_category
+        payload["shipping"] = ka.shipping.value
+        if ka.shipping_methods:
+            payload["shipping_methods"] = ka.shipping_methods
+        payload["price_type"] = ka.price_type.value
+
     return payload
 
 
@@ -170,12 +180,18 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
         "You MUST see photo thumbnails on the page before you submit the listing.\n\n"
         f"Maximum planning/tool iterations: {max_steps}.\n"
         f"Item name: {item.name}\n"
-        f"Category hint: {item.category or 'none'}\n"
+        f"Category hint: {payload.get('ka_category') or item.category or 'none'}\n"
         f"Title: {payload.get('title', '')}\n"
         f"Description:\n{payload.get('description', '')}\n"
         f"Price (EUR): {payload.get('price', '')}\n"
-        f"Condition label: {payload.get('condition', '')}\n\n"
-        "Navigate to https://www.kleinanzeigen.de/p-anzeige-aufgeben.html and complete everything. "
+        f"Price type: {payload.get('price_type', 'festpreis')}\n"
+        f"Condition label: {payload.get('condition', '')}\n"
+        f"Shipping: {payload.get('shipping', 'versand')}\n"
+        + (
+            f"Shipping methods to enable: {', '.join(cast(list[str], payload['shipping_methods']))}\n"
+            if payload.get("shipping_methods") else ""
+        )
+        + "\nNavigate to https://www.kleinanzeigen.de/p-anzeige-aufgeben.html and complete everything. "
         "At the end, respond with exactly: FINAL_URL: <url>"
     )
 

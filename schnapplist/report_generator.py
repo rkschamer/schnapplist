@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import DEFAULT_MARKETPLACE, LISTING_DISCLAIMER
-from .models import EbayListingType, Item
+from .models import EbayListingType, Item, KleinanzeigenListingOptions
 
 
 def generate_report(items: list[Item], output_dir: Path) -> Path:
@@ -62,6 +62,17 @@ def generate_report(items: list[Item], output_dir: Path) -> Path:
                 f"| **eBay listing type** | {lt} |",
                 f"| **eBay duration (days)** | {dur} |",
                 f"| **eBay reserve price (EUR)** | {reserve} |",
+            ]
+
+        # Kleinanzeigen-specific rows
+        if marketplace == "kleinanzeigen":
+            ka: KleinanzeigenListingOptions = item.ka_options or KleinanzeigenListingOptions()
+            methods = ", ".join(ka.shipping_methods) if ka.shipping_methods else "—"
+            lines += [
+                f"| **KA Category** | {ka.ka_category or '—'} |",
+                f"| **Shipping** | {ka.shipping.value} |",
+                f"| **Shipping methods** | {methods} |",
+                f"| **Price type** | {ka.price_type.value} |",
             ]
 
         lines.append("")

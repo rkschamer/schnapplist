@@ -56,6 +56,24 @@ class PriceInfo(BaseModel):
 
 # eBay listing options must be defined before Item references them.
 
+class KaShipping(StrEnum):
+    VERSAND  = "versand"
+    ABHOLUNG = "abholung"
+
+
+class KaPriceType(StrEnum):
+    FESTPREIS      = "festpreis"
+    VB             = "vb"             # Verhandlungsbasis
+    ZU_VERSCHENKEN = "zu_verschenken"
+
+
+class KleinanzeigenListingOptions(BaseModel):
+    ka_category: str | None = None        # e.g. "Elektronik > PC-Zubehör & Software"
+    shipping: KaShipping = KaShipping.VERSAND
+    shipping_methods: list[str] = []      # e.g. ["Hermes Päckchen", "DHL Paket 2 kg"]
+    price_type: KaPriceType = KaPriceType.FESTPREIS
+
+
 class EbayListingType(StrEnum):
     AUCTION = "auction"    # Chinese auction (starting bid)
     FIXED   = "fixed"      # Buy It Now
@@ -84,3 +102,4 @@ class Item(BaseModel):
     model: str | None = None
     marketplace: str | None = None          # "ebay" | "kleinanzeigen"
     ebay_options: EbayListingOptions | None = None
+    ka_options: KleinanzeigenListingOptions | None = None

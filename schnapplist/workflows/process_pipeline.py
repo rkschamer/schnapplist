@@ -20,7 +20,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from ..item_analyzer import analyze_item, build_item
+from ..item_analyzer import analyze_item, build_item, is_low_confidence
 from ..llm import LLMClient
 from ..models import Item
 from ..photo_processor import (
@@ -216,6 +216,45 @@ class ProcessWorkflow:
                 item_state.item_name = str(analysis.get("name", f"Item {idx}"))
                 item_state.condition = str(analysis.get("condition", "good"))
                 progress.advance(item_task)
+
+                # Fallback: if the LLM couldn't identify the item, try Google Lens then
+                # text search (each is best-effort; failures are logged, not raised).
+                if is_low_confidence(analysis) and filtered_for_analysis:
+                    from .image_search_agent import (
+                        identify_via_google_lens,
+                        identify_via_text_search,
+                    )
+
+                    enriched: dict[str, Any] = {}
+
+                    progress.update(
+                        item_task,
+                        description=f"[cyan]{item_label}[/cyan] — image search…",
+                    )
+                    try:
+                        enriched = identify_via_google_lens(filtered_for_analysis[0])
+                    except Exception as exc:
+                        self._console.print(
+                            f"  [yellow]⚠ Google Lens fallback failed:[/yellow] {exc}"
+                        )
+
+                    if not enriched:
+                        progress.update(
+                            item_task,
+                            description=f"[cyan]{item_label}[/cyan] — web search…",
+                        )
+                        try:
+                            enriched = identify_via_text_search(analysis)
+                        except Exception as exc:
+                            self._console.print(
+                                f"  [yellow]⚠ Text search fallback failed:[/yellow] {exc}"
+                            )
+
+                    for key, val in enriched.items():
+                        if val and not analysis.get(key):
+                            analysis[key] = val
+                    if enriched.get("name"):
+                        item_state.item_name = str(enriched["name"])
 
                 progress.update(
                     item_task,

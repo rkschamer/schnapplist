@@ -55,6 +55,9 @@ def _parse_item_section(section: str) -> dict[str, Any] | None:
     ebay = _parse_ebay_options(table)
     if ebay:
         diff["ebay_options"] = ebay
+    ka = _parse_ka_options(table)
+    if ka:
+        diff["ka_options"] = ka
     diff.update(_parse_named_sections(section))
     return diff
 
@@ -141,6 +144,31 @@ def _parse_condition(cell: str) -> str | None:
         "poor": "poor",
     }
     return english_map.get(cell.lower())
+
+
+def _parse_ka_options(table: dict[str, str]) -> dict[str, Any]:
+    """Extract Kleinanzeigen-specific option fields; returns empty dict when absent."""
+    ka: dict[str, Any] = {}
+
+    cat = table.get("KA Category", "").strip()
+    if cat and cat != "—":
+        ka["ka_category"] = cat
+
+    shipping = table.get("Shipping", "").strip().lower()
+    if shipping in ("versand", "abholung"):
+        ka["shipping"] = shipping
+
+    methods_raw = table.get("Shipping methods", "").strip()
+    if methods_raw and methods_raw != "—":
+        methods = [m.strip() for m in methods_raw.split(",") if m.strip()]
+        if methods:
+            ka["shipping_methods"] = methods
+
+    price_type = table.get("Price type", "").strip().lower()
+    if price_type in ("festpreis", "vb", "zu_verschenken"):
+        ka["price_type"] = price_type
+
+    return ka
 
 
 def _parse_ebay_options(table: dict[str, str]) -> dict[str, Any]:
