@@ -70,6 +70,8 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
             str(output_dir),
             "--save-session",
             "--allow-unrestricted-file-access",
+            "--viewport-size",
+            "800x600",
         ],
         timeout=60,
         read_timeout=600,
