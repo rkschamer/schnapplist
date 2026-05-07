@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from nicegui import ui
 
-from ...models import Item, ItemCondition
-from ...report_generator import generate_report
+from ...core.models import Item, ItemCondition
+from ...core.report_generator import generate_report
 from ..state import SessionState
 
 _CONDITIONS = [c.value for c in ItemCondition]

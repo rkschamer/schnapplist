@@ -10,7 +10,7 @@ from typing import Any, cast
 
 from PIL import Image, ImageEnhance, ImageOps
 
-from .config import (
+from ..config import (
     API_IMAGE_MAX_PX,
     ENHANCED_IMAGE_MAX_WIDTH,
     GROUP_BATCH_SIZE,

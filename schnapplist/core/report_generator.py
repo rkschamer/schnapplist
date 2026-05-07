@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .config import DEFAULT_MARKETPLACE, LISTING_DISCLAIMER
+from ..config import DEFAULT_MARKETPLACE, LISTING_DISCLAIMER
 from .models import EbayListingType, Item, KleinanzeigenListingOptions
 
 

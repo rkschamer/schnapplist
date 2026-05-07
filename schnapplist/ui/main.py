@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from nicegui import app, ui
+from nicegui.client import Client
 
 from .state import SessionState
 
@@ -42,28 +43,32 @@ def _nav_sidebar() -> None:
 
 
 @ui.page("/")
-def page_home() -> None:
+async def page_home(client: Client) -> None:
+    await client.connected()
     _nav_sidebar()
     from .pages.home import create
     create(_get_state())
 
 
 @ui.page("/process")
-def page_process() -> None:
+async def page_process(client: Client) -> None:
+    await client.connected()
     _nav_sidebar()
     from .pages.process import create
     create(_get_state())
 
 
 @ui.page("/review")
-def page_review() -> None:
+async def page_review(client: Client) -> None:
+    await client.connected()
     _nav_sidebar()
     from .pages.review import create
     create(_get_state())
 
 
 @ui.page("/post")
-def page_post() -> None:
+async def page_post(client: Client) -> None:
+    await client.connected()
     _nav_sidebar()
     from .pages.post import create
     create(_get_state())

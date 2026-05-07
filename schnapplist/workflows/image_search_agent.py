@@ -19,8 +19,8 @@ from ..config import (
     OLLAMA_HOST,
     OLLAMA_MODEL,
 )
-from ..llm import LLMClient
-from ..web_search import web_search
+from ..core.llm import LLMClient
+from ..core.web_search import web_search
 
 JsonDict = dict[str, Any]
 

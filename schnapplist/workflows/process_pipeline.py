@@ -10,17 +10,17 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Protocol, TypeVar
 
-from ..item_analyzer import analyze_item, build_item, is_low_confidence
-from ..llm import LLMClient
-from ..models import Item
-from ..photo_processor import (
+from ..core.item_analyzer import analyze_item, build_item, is_low_confidence
+from ..core.llm import LLMClient
+from ..core.models import Item
+from ..core.photo_processor import (
     enhance_photo,
     filter_redundant_photos,
     group_photos_by_item,
     load_photos,
 )
-from ..price_researcher import research_price
-from ..report_generator import generate_report
+from ..core.price_researcher import research_price
+from ..core.report_generator import generate_report
 
 _T = TypeVar("_T")
 

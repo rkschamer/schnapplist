@@ -25,7 +25,7 @@ from ..config import (
     OLLAMA_HOST,
     OLLAMA_MODEL,
 )
-from ..models import Item
+from ..core.models import Item
 
 _console = Console()
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from schnapplist.models import Item, ItemCondition, Photo, PriceInfo
+from schnapplist.core.models import Item, ItemCondition, Photo, PriceInfo
 
 _SAMPLE_ITEM_MD = """\
 ## Vintage Camera

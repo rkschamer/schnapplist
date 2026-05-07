@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .models import Item
+    from ..core.models import Item
 
 import click
 from rich.console import Console
@@ -190,7 +190,7 @@ def process(
     ollama_host: str | None,
 ) -> None:
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
-    from .services.process_service import run_process
+    from ..services.process_service import run_process
 
     rich_cb = _RichProgressCallback()
     try:
@@ -246,7 +246,7 @@ def process(
 )
 def review(output_dir: Path, report: Path | None) -> None:
     """Open the Markdown report in $EDITOR."""
-    from .workflows.review_pipeline import find_latest_report
+    from ..workflows.review_pipeline import find_latest_report
 
     report_path = Path(report) if report else find_latest_report(output_dir)
     if report_path is None:
@@ -296,7 +296,7 @@ def _find_fallback_editor() -> str:
 )
 def list_items(output_dir: Path) -> None:
     """Show all processed items and their status."""
-    from .services.item_service import list_items as svc_list_items
+    from ..services.item_service import list_items as svc_list_items
 
     items_data = svc_list_items(output_dir)
     if not items_data:
@@ -375,7 +375,7 @@ def post(
     If --item-id is given, posts that single item.
     Otherwise, posts all approved items (set Approved to true in the report).
     """
-    from .services.posting_service import load_items_from_report, post_item
+    from ..services.posting_service import load_items_from_report, post_item
 
     try:
         _, items = load_items_from_report(output_dir)

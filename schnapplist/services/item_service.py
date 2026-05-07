@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..report_parser import parse_report
+from ..core.report_parser import parse_report
 from ..workflows.review_pipeline import find_latest_report
 
 

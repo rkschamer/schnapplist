@@ -10,7 +10,7 @@ from typing import Any, cast
 
 from PIL import Image
 
-from .config import API_IMAGE_MAX_PX, DEFAULT_MARKETPLACE
+from ..config import API_IMAGE_MAX_PX, DEFAULT_MARKETPLACE
 from .llm import LLMClient
 from .models import (
     EbayListingOptions,

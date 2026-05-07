@@ -14,7 +14,7 @@ import requests
 from rich.console import Console
 
 from ..config import EBAY_APP_ID, EBAY_AUTH_TOKEN, EBAY_SANDBOX, LISTING_DISCLAIMER
-from ..models import EbayListingOptions, EbayListingType, Item
+from ..core.models import EbayListingOptions, EbayListingType, Item
 from .base import BaseMarketplace
 
 _TRADING_API_LIVE = "https://api.ebay.com/ws/api.dll"

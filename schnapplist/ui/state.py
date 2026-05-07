@@ -6,7 +6,7 @@ import dataclasses
 import tempfile
 from pathlib import Path
 
-from ..models import Item
+from ..core.models import Item
 from ..workflows.process_pipeline import ProcessRunResult
 
 

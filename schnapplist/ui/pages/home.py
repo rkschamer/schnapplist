@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
-from nicegui import app, ui
+from nicegui import ui
 
 from ..state import SessionState
 
@@ -25,39 +24,32 @@ def create(state: SessionState) -> None:
                 ).classes("text-sm text-gray-500")
 
             with ui.card_section():
+                @ui.refreshable
+                def file_list() -> None:
+                    files = sorted(state.upload_dir.glob("*"))
+                    if files:
+                        for f in files:
+                            with ui.row().classes("items-center gap-2"):
+                                ui.icon("image", size="sm").classes("text-gray-400")
+                                ui.label(f.name).classes("text-sm")
+                    else:
+                        ui.label("No photos yet").classes("text-sm text-gray-400 italic")
+
+                async def _handle_upload(e: object) -> None:
+                    f = e.file
+                    dest = state.upload_dir / f.name
+                    await f.save(dest)
+                    file_list.refresh()
+
                 ui.upload(
                     label="Drop photos here or click to select",
                     multiple=True,
                     auto_upload=True,
-                    on_upload=lambda e: _handle_upload(e, state),
+                    on_upload=_handle_upload,
                 ).classes("w-full").props("accept=image/*")
 
-            with ui.card_section():
-                ui.label("Uploaded files:").classes("text-sm font-medium")
-                uploaded_list = ui.column().classes("gap-1 mt-1")
-
-        def _refresh_uploaded() -> None:
-            uploaded_list.clear()
-            with uploaded_list:
-                files = sorted(state.upload_dir.glob("*"))
-                if files:
-                    for f in files:
-                        with ui.row().classes("items-center gap-2"):
-                            ui.icon("image", size="sm").classes("text-gray-400")
-                            ui.label(f.name).classes("text-sm")
-                else:
-                    ui.label("No photos yet").classes("text-sm text-gray-400 italic")
-
-        _refresh_uploaded()
-
-        def _handle_upload(e: object, s: SessionState) -> None:
-            content = getattr(e, "content", None)
-            name = getattr(e, "name", "upload")
-            if content is not None:
-                dest = s.upload_dir / name
-                with open(dest, "wb") as fh:
-                    fh.write(content.read())
-            _refresh_uploaded()
+                ui.label("Uploaded files:").classes("text-sm font-medium mt-2")
+                file_list()
 
         # --- Options ---
         with ui.card().classes("w-full"):
@@ -97,25 +89,17 @@ def create(state: SessionState) -> None:
                     ).classes("flex-1")
 
         # --- Start button ---
-        start_btn = ui.button(
+        ui.button(
             "Start Processing",
             icon="play_arrow",
             on_click=lambda: _start(state),
         ).classes("w-full").props("color=primary size=lg")
 
-        def _start(s: SessionState) -> None:
-            files = list(s.upload_dir.glob("*"))
-            if not files:
-                ui.notify("Please upload at least one photo first.", type="warning")
-                return
-            s.reset_processing()
-            ui.navigate.to("/process")
 
-
-def _handle_upload(e: object, state: SessionState) -> None:
-    content = getattr(e, "content", None)
-    name = getattr(e, "name", "upload")
-    if content is not None:
-        dest = state.upload_dir / name
-        with open(dest, "wb") as fh:
-            fh.write(content.read())
+def _start(s: SessionState) -> None:
+    files = list(s.upload_dir.glob("*"))
+    if not files:
+        ui.notify("Please upload at least one photo first.", type="warning")
+        return
+    s.reset_processing()
+    ui.navigate.to("/process")

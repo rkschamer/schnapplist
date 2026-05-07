@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..config import CLAUDE_MODEL, LLM_PROVIDER, OLLAMA_HOST, OLLAMA_MODEL
-from ..llm import LLMClient
+from ..core.llm import LLMClient
 from ..workflows.process_pipeline import (
     ProcessRunResult,
     ProcessWorkflow,

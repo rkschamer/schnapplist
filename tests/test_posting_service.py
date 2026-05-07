@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from schnapplist.models import Item
+from schnapplist.core.models import Item
 from schnapplist.services.posting_service import PostResult, load_items_from_report, post_item
 
 
