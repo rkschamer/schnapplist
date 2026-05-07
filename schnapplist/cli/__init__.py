@@ -89,7 +89,7 @@ class _RichProgressCallback:
             idx, total = kwargs["idx"], kwargs["total"]
             task_id = p.add_task(
                 f"[cyan]Item {idx}/{total}[/cyan] — starting…",
-                total=len(("filter", "enhance", "analyze", "price")),
+                total=4,
             )
             self._item_task_ids[idx] = task_id
 
@@ -105,11 +105,12 @@ class _RichProgressCallback:
                 "image_search": "image search…",
                 "web_search": "web search…",
                 "price": "researching price…",
+                "report": "writing report…",
             }
             desc = stage_labels.get(stage, f"{stage}…")
             if task_id is not None:
                 p.update(task_id, description=f"{label} — {desc}")
-                if stage in ("enhance", "analyze", "price"):
+                if stage in ("enhance", "analyze", "price", "report"):
                     p.advance(task_id)
 
         elif event == "item_done":
@@ -128,9 +129,7 @@ class _RichProgressCallback:
                 p.advance(self._items_task_id)
 
         elif event == "report_done":
-            if self._report_task_id is None:
-                self._report_task_id = p.add_task("Generating report…", total=1)
-            p.update(self._report_task_id, description="Report written", completed=1)
+            pass
 
         elif event == "warning":
             console.print(f"  [yellow]⚠[/yellow] {kwargs.get('message', '')}")

@@ -20,12 +20,12 @@ from ..core.photo_processor import (
     load_photos,
 )
 from ..core.price_researcher import research_price
-from ..core.report_generator import generate_report
+from ..core.report_generator import write_item_report
 
 _T = TypeVar("_T")
 
 # Stages executed per item — used to size the per-item progress bar.
-_ITEM_STAGES = ("filter", "enhance", "analyze", "price")
+_ITEM_STAGES = ("enhance", "analyze", "price", "report")
 
 
 class ProgressCallback(Protocol):
@@ -240,6 +240,9 @@ class ProcessWorkflow:
                 item.marketplace = marketplace
             items.append(item)
 
+            self._emit("item_stage", idx=idx, stage="report")
+            write_item_report(item, idx, run_dir)
+
             price_str = (
                 f"{price_info.suggested_price:.2f} {price_info.currency}"
                 if price_info
@@ -247,18 +250,12 @@ class ProcessWorkflow:
             )
             self._emit("item_done", idx=idx, name=item_state.item_name, price=price_str)
 
-        report_path = self._run_stage(
-            state.stage_records,
-            "generate_report",
-            lambda: generate_report(items, run_dir),
-            details=lambda v: {"path": str(v)},
-        )
-        self._emit("report_done", path=report_path)
+        self._emit("report_done", path=run_dir)
 
         return ProcessRunResult(
             state=state,
             items=items,
-            report_path=report_path,
+            report_path=run_dir,
         )
 
     @staticmethod

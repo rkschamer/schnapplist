@@ -23,9 +23,17 @@ def generate_report(items: list[Item], run_dir: Path) -> Path:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     for n, item in enumerate(items, start=1):
-        _write_item_file(item, run_dir / f"item-{n}.md", run_dir)
+        write_item_report(item, n, run_dir)
 
     return run_dir
+
+
+def write_item_report(item: Item, index: int, run_dir: Path) -> Path:
+    """Write a single item's Markdown file and return its path."""
+    run_dir.mkdir(parents=True, exist_ok=True)
+    item_path = run_dir / f"item-{index}.md"
+    _write_item_file(item, item_path, run_dir)
+    return item_path
 
 
 def _write_item_file(item: Item, item_path: Path, run_dir: Path) -> None:
