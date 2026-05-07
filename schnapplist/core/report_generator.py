@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from ..config import DEFAULT_MARKETPLACE, LISTING_DISCLAIMER
 from .models import EbayListingType, Item, KleinanzeigenListingOptions
+
+
+def _next_evening_start(hour: int = 19) -> datetime:
+    """Return the next upcoming datetime at *hour*:00 local time."""
+    now = datetime.now()
+    candidate = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if candidate <= now:
+        candidate += timedelta(days=1)
+    return candidate
 
 
 def generate_report(items: list[Item], run_dir: Path) -> Path:
@@ -51,10 +61,14 @@ def _write_item_file(item: Item, item_path: Path, run_dir: Path) -> None:
         lt = opts.listing_type.value if opts else EbayListingType.FIXED.value
         dur = opts.duration_days if opts else 7
         reserve = f"{opts.reserve_price:.2f}" if (opts and opts.reserve_price) else "—"
+        scheduled = (opts.scheduled_start if (opts and opts.scheduled_start)
+                     else _next_evening_start())
+        sched_str = scheduled.strftime("%Y-%m-%dT%H:%M:%S")
         lines += [
             f"| **eBay listing type** | {lt} |",
             f"| **eBay duration (days)** | {dur} |",
             f"| **eBay reserve price (EUR)** | {reserve} |",
+            f"| **eBay scheduled start** | {sched_str} |",
         ]
 
     if marketplace == "kleinanzeigen":

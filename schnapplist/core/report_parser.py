@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -199,6 +200,11 @@ def _parse_ebay_options(table: dict[str, str]) -> dict[str, Any]:
         if m_r:
             with contextlib.suppress(ValueError):
                 ebay["reserve_price"] = float(m_r.group(1).replace(",", "."))
+
+    sched_raw = table.get("eBay scheduled start", "").strip()
+    if sched_raw and sched_raw != "—":
+        with contextlib.suppress(ValueError):
+            ebay["scheduled_start"] = datetime.fromisoformat(sched_raw)
 
     return ebay
 

@@ -40,6 +40,8 @@ _llm = _toml.get("llm", {})
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 
 EBAY_APP_ID: str = os.getenv("EBAY_APP_ID", "")
+EBAY_DEV_ID: str = os.getenv("EBAY_DEV_ID", "")
+EBAY_CERT_ID: str = os.getenv("EBAY_CERT_ID", "")
 EBAY_AUTH_TOKEN: str = os.getenv("EBAY_AUTH_TOKEN", "")
 EBAY_SANDBOX: bool = os.getenv("EBAY_SANDBOX", "false").lower() == "true"
 
