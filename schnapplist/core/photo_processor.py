@@ -64,7 +64,7 @@ def _parse_json_response(text: str) -> Any:
     return None
 
 
-
+def _build_image_block(path: Path) -> JsonDict:
     data, media_type = _encode_for_api(path)
     return {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}}
 
