@@ -109,7 +109,7 @@ class ProcessWorkflow:
         if self._on_progress is not None:
             self._on_progress(event, **kwargs)
 
-    def run(self, *, photos_dir: Path, output_dir: Path, single_item: bool) -> ProcessRunResult:
+    def run(self, *, photos_dir: Path, output_dir: Path, single_item: bool, marketplace: str | None = None) -> ProcessRunResult:
         state = ProcessRunState(
             run_id=str(uuid.uuid4())[:8],
             photos_dir=photos_dir,
@@ -236,6 +236,8 @@ class ProcessWorkflow:
 
             item = build_item(analysis, filtered, enhanced)
             item.price_info = price_info
+            if marketplace:
+                item.marketplace = marketplace
             items.append(item)
 
             price_str = (

@@ -18,6 +18,7 @@ def run_process(
     output_dir: Path,
     *,
     single_item: bool = False,
+    marketplace: str | None = None,
     llm_provider: str | None = None,
     llm_model: str | None = None,
     ollama_host: str | None = None,
@@ -52,4 +53,5 @@ def run_process(
         photos_dir=photos_dir,
         output_dir=output_dir,
         single_item=single_item,
+        marketplace=marketplace,
     )

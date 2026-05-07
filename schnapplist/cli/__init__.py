@@ -166,6 +166,12 @@ def main() -> None:
     help="Treat all photos as one item — skips AI grouping.",
 )
 @click.option(
+    "--marketplace", "-m",
+    default=None,
+    type=click.Choice(["kleinanzeigen", "ebay"]),
+    help="Override the default marketplace for all items in this report.",
+)
+@click.option(
     "--llm-provider",
     default=None,
     type=click.Choice(["anthropic", "ollama"]),
@@ -185,6 +191,7 @@ def process(
     photos_dir: Path,
     output_dir: Path,
     single_item: bool,
+    marketplace: str | None,
     llm_provider: str,
     llm_model: str | None,
     ollama_host: str | None,
@@ -199,6 +206,7 @@ def process(
                 photos_dir=photos_dir,
                 output_dir=output_dir,
                 single_item=single_item,
+                marketplace=marketplace,
                 llm_provider=llm_provider,
                 llm_model=llm_model,
                 ollama_host=ollama_host,
