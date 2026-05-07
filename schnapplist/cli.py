@@ -120,7 +120,7 @@ def process(
 
     # Offer inline review
     if click.confirm("\nReview and edit the report now?", default=True):
-        _run_review(output_dir, report_path)
+        _run_review(report_path)
 
     console.print(
         "\nWhen ready, run [bold]schnapplist post[/bold] to create listings."
@@ -142,7 +142,7 @@ def process(
     "--report",
     default=None,
     type=click.Path(path_type=Path),
-    help="Explicit report path (default: most recent).",
+    help="Explicit run folder or item file (default: most recent run).",
 )
 def review(output_dir: Path, report: Path | None) -> None:
     """Open the Markdown report in $EDITOR."""
@@ -156,10 +156,18 @@ def review(output_dir: Path, report: Path | None) -> None:
 
 
 def _run_review(report_path: Path) -> None:
-    """Open report in $EDITOR."""
+    """Open report in $EDITOR — accepts a run folder or a single item file."""
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL") or _find_fallback_editor()
+    if report_path.is_dir():
+        files = sorted(
+            report_path.glob("item-*.md"),
+            key=lambda p: int(p.stem.split("-")[1]),
+        )
+        paths = [str(f) for f in files] if files else [str(report_path)]
+    else:
+        paths = [str(report_path)]
     console.print(f"Opening [bold]{report_path}[/bold] in [cyan]{editor}[/cyan] …")
-    subprocess.run([editor, str(report_path)], check=False)
+    subprocess.run([editor, *paths], check=False)
 
 
 def _find_fallback_editor() -> str:
@@ -291,7 +299,7 @@ def post(
     # Build Item objects from parsed report data
     items: list[Item] = []
     for data in parsed_items:
-        photos = _resolve_photos(data.pop("photo_paths", []), output_dir)
+        photos = _resolve_photos(data.pop("photo_paths", []), latest_report)
         price_info = None
         if "suggested_price" in data:
             from .models import PriceInfo

@@ -20,10 +20,20 @@ from typing import Any
 def parse_report(report_path: Path) -> list[dict[str, Any]]:
     """Return a list of partial item dicts parsed from *report_path*.
 
-    Each dict contains at minimum ``{"id": "<8-char id>"}`` plus any editable
-    fields found.  Fields that could not be parsed are omitted so callers can
-    merge diffs without overwriting good existing data.
+    *report_path* may be a run folder (containing ``item-*.md`` files) or a
+    single Markdown file.  Each dict contains at minimum ``{"id": "<8-char id>"}``
+    plus any editable fields found.
     """
+    if report_path.is_dir():
+        item_files = sorted(
+            report_path.glob("item-*.md"),
+            key=lambda p: int(p.stem.split("-")[1]),
+        )
+        results: list[dict[str, Any]] = []
+        for f in item_files:
+            results.extend(parse_report(f))
+        return results
+
     text = report_path.read_text(encoding="utf-8")
     raw_sections = re.split(r"\n(?=## )", text)
     results: list[dict[str, Any]] = []

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from time import perf_counter
 from typing import Any, TypeVar
@@ -155,9 +156,12 @@ class ProcessWorkflow:
 
             state.total_groups = len(groups)
 
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            run_dir = output_dir / f"schnapplist-report-{timestamp}"
+
             items_task = progress.add_task("Processing items…", total=len(groups))
             items: list[Item] = []
-            enhanced_root = output_dir / "enhanced"
+            enhanced_root = run_dir / "pictures"
 
             for idx, group in enumerate(groups, start=1):
                 item_label = f"Item {idx}/{len(groups)}"
@@ -295,7 +299,7 @@ class ProcessWorkflow:
             report_path = self._run_stage(
                 state.stage_records,
                 "generate_report",
-                lambda: generate_report(items, output_dir),
+                lambda: generate_report(items, run_dir),
                 details=lambda v: {"path": str(v)},
             )
             progress.update(report_task, description="Report written", total=1, completed=1)
