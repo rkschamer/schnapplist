@@ -5,40 +5,145 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .models import Item, Photo
+    from .models import Item
 
 import click
 from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from rich.rule import Rule
 from rich.table import Table
 
 console = Console()
 
 
-def _require_anthropic_key() -> str:
-    key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not key:
-        console.print(
-            "[red]Error:[/red] ANTHROPIC_API_KEY is not set.\n"
-            "Add it to a [bold].env[/bold] file or export it in your shell."
+# ---------------------------------------------------------------------------
+# RichProgressCallback — translates workflow events to Rich progress display
+# ---------------------------------------------------------------------------
+
+class _RichProgressCallback:
+    """Drives a Rich Progress context from ProcessWorkflow events."""
+
+    def __init__(self) -> None:
+        self._progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            transient=False,
         )
-        sys.exit(1)
-    return key
+        self._scan_task_id: Any = None
+        self._group_task_id: Any = None
+        self._items_task_id: Any = None
+        self._item_task_ids: dict[int, Any] = {}
+        self._report_task_id: Any = None
+        self._total_items: int = 0
 
+        # Add placeholder tasks immediately so the progress bar renders cleanly
+        self._scan_task_id = self._progress.add_task("Scanning photos…", total=None)
 
-@click.group()
-def main() -> None:
-    """Snaplist — AI-powered listing creator."""
+    def __enter__(self) -> "_RichProgressCallback":
+        self._progress.__enter__()
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self._progress.__exit__(*args)
+
+    def __call__(self, event: str, **kwargs: Any) -> None:
+        p = self._progress
+        if event == "scan_done":
+            count = kwargs["count"]
+            p.update(
+                self._scan_task_id,
+                description=f"Found [bold]{count}[/bold] photo(s)",
+                total=1,
+                completed=1,
+            )
+            self._group_task_id = p.add_task("Grouping photos by item…", total=None)
+
+        elif event == "group_done":
+            count = kwargs["count"]
+            self._total_items = count
+            if self._group_task_id is not None:
+                p.update(
+                    self._group_task_id,
+                    description=f"Identified [bold]{count}[/bold] item group(s)",
+                    total=1,
+                    completed=1,
+                )
+            self._items_task_id = p.add_task("Processing items…", total=count)
+
+        elif event == "item_start":
+            idx, total = kwargs["idx"], kwargs["total"]
+            task_id = p.add_task(
+                f"[cyan]Item {idx}/{total}[/cyan] — starting…",
+                total=len(("filter", "enhance", "analyze", "price")),
+            )
+            self._item_task_ids[idx] = task_id
+
+        elif event == "item_stage":
+            idx, stage = kwargs["idx"], kwargs["stage"]
+            task_id = self._item_task_ids.get(idx)
+            total = self._total_items
+            label = f"[cyan]Item {idx}/{total}[/cyan]"
+            stage_labels = {
+                "filter": "filtering photos…",
+                "enhance": "enhancing photos…",
+                "analyze": "analyzing item…",
+                "image_search": "image search…",
+                "web_search": "web search…",
+                "price": "researching price…",
+            }
+            desc = stage_labels.get(stage, f"{stage}…")
+            if task_id is not None:
+                p.update(task_id, description=f"{label} — {desc}")
+                if stage in ("enhance", "analyze", "price"):
+                    p.advance(task_id)
+
+        elif event == "item_done":
+            idx, name, price = kwargs["idx"], kwargs["name"], kwargs["price"]
+            task_id = self._item_task_ids.get(idx)
+            total = self._total_items
+            if task_id is not None:
+                p.update(
+                    task_id,
+                    description=(
+                        f"[cyan]Item {idx}/{total}[/cyan] [green]✓[/green] "
+                        f"[bold]{name}[/bold]  {price}"
+                    ),
+                )
+            if self._items_task_id is not None:
+                p.advance(self._items_task_id)
+
+        elif event == "report_done":
+            if self._report_task_id is None:
+                self._report_task_id = p.add_task("Generating report…", total=1)
+            p.update(self._report_task_id, description="Report written", completed=1)
+
+        elif event == "warning":
+            console.print(f"  [yellow]⚠[/yellow] {kwargs.get('message', '')}")
 
 
 # ---------------------------------------------------------------------------
 # process
 # ---------------------------------------------------------------------------
+
+@click.group()
+def main() -> None:
+    """Snaplist — AI-powered listing creator."""
+
 
 @main.command()
 @click.option(
@@ -85,27 +190,23 @@ def process(
     ollama_host: str | None,
 ) -> None:
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
-    from .config import CLAUDE_MODEL, LLM_PROVIDER, OLLAMA_HOST, OLLAMA_MODEL
-    from .llm import LLMClient
-    from .workflows.process_pipeline import ProcessWorkflow
+    from .services.process_service import run_process
 
-    provider = llm_provider or LLM_PROVIDER
-
-    if provider == "anthropic":
-        api_key = _require_anthropic_key()
-        model = llm_model or CLAUDE_MODEL
-        client = LLMClient("anthropic", model, api_key=api_key)
-    else:
-        model = llm_model or OLLAMA_MODEL
-        host = ollama_host or OLLAMA_HOST
-        client = LLMClient("ollama", model, ollama_host=host)
-        console.print(f"Using Ollama [bold]{model}[/bold] at [cyan]{host}[/cyan]")
-    workflow = ProcessWorkflow(client, console=console)
-    result = workflow.run(
-        photos_dir=photos_dir,
-        output_dir=output_dir,
-        single_item=single_item,
-    )
+    rich_cb = _RichProgressCallback()
+    try:
+        with rich_cb:
+            result = run_process(
+                photos_dir=photos_dir,
+                output_dir=output_dir,
+                single_item=single_item,
+                llm_provider=llm_provider,
+                llm_model=llm_model,
+                ollama_host=ollama_host,
+                on_progress=rich_cb,
+            )
+    except ValueError as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        sys.exit(1)
 
     if result.state.total_photos == 0:
         console.print("[yellow]No supported photos found in directory.[/yellow]")
@@ -118,7 +219,6 @@ def process(
 
     console.print(f"\n[bold green]Report:[/bold green] {report_path}")
 
-    # Offer inline review
     if click.confirm("\nReview and edit the report now?", default=True):
         _run_review(report_path)
 
@@ -196,15 +296,12 @@ def _find_fallback_editor() -> str:
 )
 def list_items(output_dir: Path) -> None:
     """Show all processed items and their status."""
-    from .report_parser import parse_report
-    from .workflows.review_pipeline import find_latest_report
+    from .services.item_service import list_items as svc_list_items
 
-    report_path = find_latest_report(output_dir)
-    if not report_path:
+    items_data = svc_list_items(output_dir)
+    if not items_data:
         console.print("[yellow]No items found. Run 'process' first.[/yellow]")
         return
-
-    items_data = parse_report(report_path)
 
     table = Table(title="Processed Items", show_lines=True)
     table.add_column("ID", style="cyan", no_wrap=True)
@@ -277,73 +374,15 @@ def post(
 
     If --item-id is given, posts that single item.
     Otherwise, posts all approved items (set Approved to true in the report).
-
-    Items are read directly from the latest Markdown report.
     """
-    from .config import DEFAULT_MARKETPLACE
-    from .models import Item, ItemCondition
-    from .providers import MARKETPLACES
-    from .report_parser import parse_report
-    from .workflows.review_pipeline import find_latest_report
+    from .services.posting_service import load_items_from_report, post_item
 
-    latest_report = find_latest_report(output_dir)
-    if not latest_report:
-        console.print("[red]No report found. Run 'process' first.[/red]")
+    try:
+        _, items = load_items_from_report(output_dir)
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
         sys.exit(1)
 
-    parsed_items = parse_report(latest_report)
-    if not parsed_items:
-        console.print("[red]No items found in report.[/red]")
-        sys.exit(1)
-
-    # Build Item objects from parsed report data
-    items: list[Item] = []
-    for data in parsed_items:
-        photos = _resolve_photos(data.pop("photo_paths", []), latest_report)
-        price_info = None
-        if "suggested_price" in data:
-            from .models import PriceInfo
-
-            price_info = PriceInfo(
-                suggested_price=data.pop("suggested_price"),
-                min_price=0,
-                max_price=0,
-                reasoning="",
-            )
-        ebay_options = None
-        if "ebay_options" in data:
-            from .models import EbayListingOptions
-
-            ebay_options = EbayListingOptions(**data.pop("ebay_options"))
-
-        ka_options = None
-        if "ka_options" in data:
-            from .models import KleinanzeigenListingOptions
-
-            ka_options = KleinanzeigenListingOptions(**data.pop("ka_options"))
-
-        condition = data.pop("condition", "good")
-        items.append(
-            Item(
-                id=data.get("id", ""),
-                name=data.get("name", ""),
-                title_de=data.get("title_de", ""),
-                description=data.get("description", ""),
-                condition=ItemCondition(condition),
-                photos=photos,
-                price_info=price_info,
-                approved=data.get("approved", False),
-                tags=data.get("tags", []),
-                category=data.get("category"),
-                brand=data.get("brand"),
-                model=data.get("model"),
-                marketplace=data.get("marketplace"),
-                ebay_options=ebay_options,
-                ka_options=ka_options,
-            )
-        )
-
-    # Determine which items to post
     if item_id:
         targets = [it for it in items if it.id == item_id]
         if not targets:
@@ -358,42 +397,16 @@ def post(
             )
             return
 
+    total = len(targets)
     posted = 0
     failed = 0
-    total = len(targets)
 
     if total > 1:
         console.print(f"\nPosting [bold]{total}[/bold] items…\n")
 
     for idx, item in enumerate(targets, 1):
-        effective_marketplace = (
-            marketplace or item.marketplace or DEFAULT_MARKETPLACE
-        )
-
-        if schedule and item.ebay_options:
-            item.ebay_options.scheduled_start = datetime.fromisoformat(schedule)
-
-        if dry_run:
-            _print_dry_run(item, effective_marketplace)
-            posted += 1
-            continue
-
-        mkt = MARKETPLACES.get(effective_marketplace)
-        if mkt is None:
-            console.print(
-                f"[red]Unknown marketplace '{effective_marketplace}' "
-                f"for item '{item.name}'.[/red]"
-            )
-            failed += 1
-            continue
-
-        if not mkt.is_available():
-            console.print(
-                f"[red]Marketplace '{effective_marketplace}' "
-                "is not configured.[/red]"
-            )
-            failed += 1
-            continue
+        from .config import DEFAULT_MARKETPLACE
+        effective_marketplace = marketplace or item.marketplace or DEFAULT_MARKETPLACE
 
         prefix = f"[dim][{idx}/{total}][/dim] " if total > 1 else ""
         console.print(Rule(
@@ -402,34 +415,21 @@ def post(
         ))
         _print_item_details(item, effective_marketplace)
 
-        try:
-            url = mkt.post_listing(
-                item,
-                item.ebay_options if effective_marketplace == "ebay" else None,
-            )
-            console.print(f"\n[bold green]✓ Posted:[/bold green] {url}\n")
+        result = post_item(item, effective_marketplace, schedule=schedule, dry_run=dry_run)
+
+        if result.dry_run:
+            _print_dry_run_summary(result.dry_run_summary or {})
             posted += 1
-        except (RuntimeError, NotImplementedError) as exc:
-            console.print(f"\n[red]Error posting '{item.name}':[/red] {exc}\n")
+        elif result.success:
+            console.print(f"\n[bold green]✓ Posted:[/bold green] {result.url}\n")
+            posted += 1
+        else:
+            console.print(f"\n[red]Error posting '{item.name}':[/red] {result.error}\n")
             failed += 1
 
     if total > 1:
         console.print(Rule(style="dim"))
         console.print(f"[bold]Done:[/bold] {posted} posted, {failed} failed.")
-
-
-def _resolve_photos(paths: list[str], output_dir: Path) -> list[Photo]:
-    """Convert relative photo paths from the report to Photo objects."""
-    from .models import Photo as _Photo
-
-    photos: list[_Photo] = []
-    for p in paths:
-        resolved = (output_dir / p).resolve()
-        if "enhanced" in p:
-            photos.append(_Photo(original_path=resolved, enhanced_path=resolved))
-        else:
-            photos.append(_Photo(original_path=resolved))
-    return photos
 
 
 def _print_item_details(item: Item, marketplace: str) -> None:
@@ -448,21 +448,10 @@ def _print_item_details(item: Item, marketplace: str) -> None:
     console.print()
 
 
-def _print_dry_run(item: Item, marketplace: str) -> None:
-    ebay_opts = item.ebay_options
-    console.print(f"[yellow][DRY RUN][/yellow] Would post to [bold]{marketplace}[/bold]:")
-    console.print(f"  Title:     {item.title_de or item.name}")
-    console.print(f"  Condition: {item.condition.to_german()}")
-    if item.price_info:
-        console.print(f"  Price:     {item.price_info.suggested_price:.2f} EUR")
-    console.print(f"  Photos:    {len(item.photos)}")
-    if marketplace == "ebay" and ebay_opts:
-        console.print(f"  Listing type: {ebay_opts.listing_type.value}")
-        if ebay_opts.reserve_price:
-            console.print(f"  Reserve:      {ebay_opts.reserve_price:.2f} EUR")
-        console.print(f"  Duration:     {ebay_opts.duration_days} days")
-        if ebay_opts.scheduled_start:
-            console.print(f"  Scheduled:    {ebay_opts.scheduled_start.isoformat()}")
+def _print_dry_run_summary(summary: dict) -> None:
+    console.print("[yellow][DRY RUN][/yellow] Would post:")
+    for key, val in summary.items():
+        console.print(f"  {key.replace('_', ' ').title()}: {val}")
 
 
 # ---------------------------------------------------------------------------

@@ -15,10 +15,12 @@ dependencies = [
     "pydantic>=2.0.0",
     "requests>=2.31.0",
     "platformdirs>=4.0.0",
+    "nicegui>=2.0.0",
 ]
 
 [project.scripts]
 schnapplist = "schnapplist.cli:main"
+schnapplist-ui = "schnapplist.ui.main:run"
 
 [dependency-groups]
 dev = [

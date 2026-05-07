@@ -8,17 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
-from typing import Any, TypeVar
-
-from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
+from typing import Any, Protocol, TypeVar
 
 from ..item_analyzer import analyze_item, build_item, is_low_confidence
 from ..llm import LLMClient
@@ -36,6 +26,22 @@ _T = TypeVar("_T")
 
 # Stages executed per item — used to size the per-item progress bar.
 _ITEM_STAGES = ("filter", "enhance", "analyze", "price")
+
+
+class ProgressCallback(Protocol):
+    """Receives progress events from ProcessWorkflow.
+
+    Emitted events and their kwargs:
+      scan_done      count: int
+      group_done     count: int
+      item_start     idx: int, total: int
+      item_stage     idx: int, stage: str
+      item_done      idx: int, name: str, price: str
+      report_done    path: Path
+      warning        message: str
+    """
+
+    def __call__(self, event: str, **kwargs: Any) -> None: ...
 
 
 def _details_factory() -> dict[str, Any]:
@@ -95,9 +101,13 @@ class ProcessRunResult:
 class ProcessWorkflow:
     """Deterministic processing workflow with explicit run state."""
 
-    def __init__(self, client: LLMClient, console: Console | None = None) -> None:
+    def __init__(self, client: LLMClient, on_progress: ProgressCallback | None = None) -> None:
         self._client = client
-        self._console = console or Console()
+        self._on_progress = on_progress
+
+    def _emit(self, event: str, **kwargs: Any) -> None:
+        if self._on_progress is not None:
+            self._on_progress(event, **kwargs)
 
     def run(self, *, photos_dir: Path, output_dir: Path, single_item: bool) -> ProcessRunResult:
         state = ProcessRunState(
@@ -107,202 +117,141 @@ class ProcessWorkflow:
             single_item=single_item,
         )
 
-        progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(),
-            MofNCompleteColumn(),
-            TimeElapsedColumn(),
-            console=self._console,
-            transient=False,
+        photos = self._run_stage(
+            state.stage_records,
+            "scan_photos",
+            lambda: load_photos(photos_dir),
+            details=lambda v: {"count": len(v)},
         )
+        self._emit("scan_done", count=len(photos))
 
-        with progress:
-            scan_task = progress.add_task("Scanning photos…", total=None)
-            photos = self._run_stage(
+        state.total_photos = len(photos)
+        if not photos:
+            return ProcessRunResult(state=state, items=[], report_path=None)
+
+        if single_item:
+            groups = [photos]
+            self._emit("group_done", count=1)
+        else:
+            groups = self._run_stage(
                 state.stage_records,
-                "scan_photos",
-                lambda: load_photos(photos_dir),
+                "group_photos",
+                lambda: group_photos_by_item(photos, self._client),
                 details=lambda v: {"count": len(v)},
             )
-            progress.update(
-                scan_task,
-                description=f"Found [bold]{len(photos)}[/bold] photo(s)",
-                total=1,
-                completed=1,
+            self._emit("group_done", count=len(groups))
+
+        state.total_groups = len(groups)
+
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        run_dir = output_dir / f"schnapplist-report-{timestamp}"
+
+        items: list[Item] = []
+        enhanced_root = run_dir / "pictures"
+
+        for idx, group in enumerate(groups, start=1):
+            self._emit("item_start", idx=idx, total=len(groups))
+
+            item_state = ItemRunState(index=idx, original_photos=list(group))
+            state.item_states.append(item_state)
+
+            filtered = list(group)
+            if len(filtered) > 1:
+                self._emit("item_stage", idx=idx, stage="filter")
+                group_for_filter = list(filtered)
+                filtered = self._run_stage(
+                    item_state.stage_records,
+                    "filter_redundant_photos",
+                    lambda g=group_for_filter: filter_redundant_photos(g, self._client),
+                    details=lambda v: {"count": len(v)},
+                )
+            item_state.filtered_photos = filtered
+
+            self._emit("item_stage", idx=idx, stage="enhance")
+            filtered_for_enhance = list(filtered)
+            enhanced = self._run_stage(
+                item_state.stage_records,
+                "enhance_photos",
+                lambda fe=filtered_for_enhance: [
+                    enhance_photo(photo, enhanced_root, self._client) for photo in fe
+                ],
+                details=lambda v: {"count": len(v)},
             )
+            item_state.enhanced_photos = enhanced
 
-            state.total_photos = len(photos)
-            if not photos:
-                return ProcessRunResult(state=state, items=[], report_path=None)
+            self._emit("item_stage", idx=idx, stage="analyze")
+            filtered_for_analysis = list(filtered)
+            analysis = self._run_stage(
+                item_state.stage_records,
+                "analyze_item",
+                lambda fa=filtered_for_analysis: analyze_item(fa, self._client),
+            )
+            item_state.item_name = str(analysis.get("name", f"Item {idx}"))
+            item_state.condition = str(analysis.get("condition", "good"))
 
-            if single_item:
-                groups = [photos]
-                progress.add_task("Grouping skipped (--single-item)", total=1, completed=1)
-            else:
-                group_task = progress.add_task("Grouping photos by item…", total=None)
-                groups = self._run_stage(
-                    state.stage_records,
-                    "group_photos",
-                    lambda: group_photos_by_item(photos, self._client),
-                    details=lambda v: {"count": len(v)},
-                )
-                progress.update(
-                    group_task,
-                    description=f"Identified [bold]{len(groups)}[/bold] item group(s)",
-                    total=1,
-                    completed=1,
-                )
+            # Google Lens: only when the LLM could not identify the item at all.
+            if is_low_confidence(analysis) and filtered_for_analysis:
+                from .image_search_agent import identify_via_google_lens
 
-            state.total_groups = len(groups)
-
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            run_dir = output_dir / f"schnapplist-report-{timestamp}"
-
-            items_task = progress.add_task("Processing items…", total=len(groups))
-            items: list[Item] = []
-            enhanced_root = run_dir / "pictures"
-
-            for idx, group in enumerate(groups, start=1):
-                item_label = f"Item {idx}/{len(groups)}"
-                item_task = progress.add_task(
-                    f"[cyan]{item_label}[/cyan] — starting…",
-                    total=len(_ITEM_STAGES),
-                )
-
-                item_state = ItemRunState(index=idx, original_photos=list(group))
-                state.item_states.append(item_state)
-
-                filtered = list(group)
-                if len(filtered) > 1:
-                    progress.update(
-                        item_task,
-                        description=f"[cyan]{item_label}[/cyan] — filtering photos…",
-                    )
-                    group_for_filter = list(filtered)
-                    filtered = self._run_stage(
-                        item_state.stage_records,
-                        "filter_redundant_photos",
-                        lambda g=group_for_filter: filter_redundant_photos(g, self._client),
-                        details=lambda v: {"count": len(v)},
-                    )
-                item_state.filtered_photos = filtered
-                progress.advance(item_task)
-
-                progress.update(
-                    item_task,
-                    description=f"[cyan]{item_label}[/cyan] — enhancing {len(filtered)} photo(s)…",
-                )
-                filtered_for_enhance = list(filtered)
-                enhanced = self._run_stage(
-                    item_state.stage_records,
-                    "enhance_photos",
-                    lambda fe=filtered_for_enhance: [
-                        enhance_photo(photo, enhanced_root, self._client) for photo in fe
-                    ],
-                    details=lambda v: {"count": len(v)},
-                )
-                item_state.enhanced_photos = enhanced
-                progress.advance(item_task)
-
-                progress.update(
-                    item_task,
-                    description=f"[cyan]{item_label}[/cyan] — analyzing item…",
-                )
-                filtered_for_analysis = list(filtered)
-                analysis = self._run_stage(
-                    item_state.stage_records,
-                    "analyze_item",
-                    lambda fa=filtered_for_analysis: analyze_item(fa, self._client),
-                )
-                item_state.item_name = str(analysis.get("name", f"Item {idx}"))
-                item_state.condition = str(analysis.get("condition", "good"))
-                progress.advance(item_task)
-
-                # Google Lens: only when the LLM could not identify the item at all.
-                if is_low_confidence(analysis) and filtered_for_analysis:
-                    from .image_search_agent import identify_via_google_lens
-
-                    progress.update(
-                        item_task,
-                        description=f"[cyan]{item_label}[/cyan] — image search…",
-                    )
-                    try:
-                        lens_enriched = identify_via_google_lens(filtered_for_analysis[0])
-                        for key, val in lens_enriched.items():
-                            if val and not analysis.get(key):
-                                analysis[key] = val
-                        if lens_enriched.get("name"):
-                            item_state.item_name = str(lens_enriched["name"])
-                    except Exception as exc:
-                        self._console.print(
-                            f"  [yellow]⚠ Google Lens fallback failed:[/yellow] {exc}"
-                        )
-
-                # Text search: always — verifies and corrects the current identification.
-                from .image_search_agent import identify_via_text_search
-
-                progress.update(
-                    item_task,
-                    description=f"[cyan]{item_label}[/cyan] — web search…",
-                )
+                self._emit("item_stage", idx=idx, stage="image_search")
                 try:
-                    text_enriched = identify_via_text_search(analysis, self._client)
-                    # Override existing values — purpose is correction, not just gap-fill.
-                    for key, val in text_enriched.items():
-                        if val:
+                    lens_enriched = identify_via_google_lens(filtered_for_analysis[0])
+                    for key, val in lens_enriched.items():
+                        if val and not analysis.get(key):
                             analysis[key] = val
-                    if text_enriched.get("name"):
-                        item_state.item_name = str(text_enriched["name"])
+                    if lens_enriched.get("name"):
+                        item_state.item_name = str(lens_enriched["name"])
                 except Exception as exc:
-                    self._console.print(
-                        f"  [yellow]⚠ Text search failed:[/yellow] {exc}"
-                    )
+                    self._emit("warning", message=f"Google Lens fallback failed: {exc}")
 
-                progress.update(
-                    item_task,
-                    description=f"[cyan]{item_label}[/cyan] — researching price…",
-                )
-                keywords_for_price = list(analysis.get("keywords") or [item_state.item_name])
-                condition_for_price = item_state.condition
-                price_info = self._run_stage(
-                    item_state.stage_records,
-                    "research_price",
-                    lambda kw=keywords_for_price, cond=condition_for_price: research_price(
-                        kw, cond, self._client
-                    ),
-                    details=lambda v: {
-                        "suggested_price": v.suggested_price,
-                        "currency": v.currency,
-                    },
-                )
-                progress.advance(item_task)
+            # Text search: always — verifies and corrects the current identification.
+            from .image_search_agent import identify_via_text_search
 
-                item = build_item(analysis, filtered, enhanced)
-                item.price_info = price_info
-                items.append(item)
+            self._emit("item_stage", idx=idx, stage="web_search")
+            try:
+                text_enriched = identify_via_text_search(analysis, self._client)
+                # Override existing values — purpose is correction, not just gap-fill.
+                for key, val in text_enriched.items():
+                    if val:
+                        analysis[key] = val
+                if text_enriched.get("name"):
+                    item_state.item_name = str(text_enriched["name"])
+            except Exception as exc:
+                self._emit("warning", message=f"Text search failed: {exc}")
 
-                if price_info:
-                    price_str = f"{price_info.suggested_price:.2f} {price_info.currency}"
-                else:
-                    price_str = "—"
-                progress.update(
-                    item_task,
-                    description=(
-                        f"[cyan]{item_label}[/cyan] [green]✓[/green] "
-                        f"[bold]{item_state.item_name}[/bold]  {price_str}"
-                    ),
-                )
-                progress.advance(items_task)
-
-            report_task = progress.add_task("Generating report…", total=None)
-            report_path = self._run_stage(
-                state.stage_records,
-                "generate_report",
-                lambda: generate_report(items, run_dir),
-                details=lambda v: {"path": str(v)},
+            self._emit("item_stage", idx=idx, stage="price")
+            keywords_for_price = list(analysis.get("keywords") or [item_state.item_name])
+            condition_for_price = item_state.condition
+            price_info = self._run_stage(
+                item_state.stage_records,
+                "research_price",
+                lambda kw=keywords_for_price, cond=condition_for_price: research_price(
+                    kw, cond, self._client
+                ),
+                details=lambda v: {
+                    "suggested_price": v.suggested_price,
+                    "currency": v.currency,
+                },
             )
-            progress.update(report_task, description="Report written", total=1, completed=1)
+
+            item = build_item(analysis, filtered, enhanced)
+            item.price_info = price_info
+            items.append(item)
+
+            price_str = (
+                f"{price_info.suggested_price:.2f} {price_info.currency}"
+                if price_info
+                else "—"
+            )
+            self._emit("item_done", idx=idx, name=item_state.item_name, price=price_str)
+
+        report_path = self._run_stage(
+            state.stage_records,
+            "generate_report",
+            lambda: generate_report(items, run_dir),
+            details=lambda v: {"path": str(v)},
+        )
+        self._emit("report_done", path=report_path)
 
         return ProcessRunResult(
             state=state,
