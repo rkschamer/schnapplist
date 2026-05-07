@@ -54,7 +54,7 @@ ENHANCED_IMAGE_MAX_WIDTH = 1200
 PHOTO_QUALITY = 90
 
 # Max photos per Claude grouping request (to stay within context limits)
-GROUP_BATCH_SIZE = 10
+GROUP_BATCH_SIZE = 5
 
 LLM_PROVIDER: str = _llm.get("provider", "anthropic")
 CLAUDE_MODEL = _llm.get("model") or os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")

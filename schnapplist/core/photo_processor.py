@@ -46,7 +46,25 @@ def _encode_for_api(path: Path, max_px: int = API_IMAGE_MAX_PX) -> tuple[str, st
     return data, "image/jpeg"
 
 
-def _build_image_block(path: Path) -> JsonDict:
+def _parse_json_response(text: str) -> Any:
+    """Extract and parse the first JSON value (object or array) from *text*.
+
+    Tries ``{...}`` first (preferred object form), then ``[...]`` (bare array
+    fallback).  Returns ``None`` when no valid JSON can be found.
+    """
+    for open_ch, close_ch in (("{", "}"), ("[", "]")):
+        start = text.find(open_ch)
+        end = text.rfind(close_ch) + 1
+        if start == -1 or end <= start:
+            continue
+        try:
+            return json.loads(text[start:end])
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+
     data, media_type = _encode_for_api(path)
     return {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}}
 
@@ -77,16 +95,19 @@ def _group_batch(batch: list[Path], client: LLMClient) -> list[list[int]]:
     )
 
     text = response.content[0].text
-    start, end = text.find("{"), text.rfind("}") + 1
-    if start == -1 or end <= start:
-        raise ValueError(
-            f"Model returned no JSON for photo grouping.\n"
-            f"Raw response: {text!r}\n"
-            f"Tip: use a vision-capable model, or skip grouping with --single-item."
-        )
-    parsed = cast(JsonDict, json.loads(text[start:end]))
-    groups = cast(list[list[int]], parsed["groups"])
-    return [list(map(int, g)) for g in groups]
+    parsed = _parse_json_response(text)
+
+    if isinstance(parsed, dict) and "groups" in parsed:
+        groups = cast(list[list[int]], parsed["groups"])
+        return [list(map(int, g)) for g in groups]
+    if isinstance(parsed, list) and parsed and isinstance(parsed[0], list):
+        return [list(map(int, g)) for g in cast(list[list[int]], parsed)]
+
+    raise ValueError(
+        f"Model returned no JSON for photo grouping.\n"
+        f"Raw response: {text!r}\n"
+        f"Tip: use a vision-capable model, or skip grouping with --single-item."
+    )
 
 
 def group_photos_by_item(photos: list[Path], client: LLMClient) -> list[list[Path]]:
@@ -115,10 +136,17 @@ def group_photos_by_item(photos: list[Path], client: LLMClient) -> list[list[Pat
     return all_groups
 
 
+_MAX_MERGE_REPRESENTATIVES = 12
+
+
 def _merge_groups_across_batches(
     groups: list[list[Path]], client: LLMClient
 ) -> list[list[Path]]:
     """Use one representative photo per group to see if any groups should merge."""
+    if len(groups) > _MAX_MERGE_REPRESENTATIVES:
+        # Too many groups to merge reliably in one call — skip the merge pass.
+        return groups
+
     representatives = [g[0] for g in groups]
     content: list[JsonDict] = []
     for i, photo in enumerate(representatives):
@@ -141,9 +169,15 @@ def _merge_groups_across_batches(
     )
 
     text = response.content[0].text
-    start, end = text.find("{"), text.rfind("}") + 1
-    parsed = cast(JsonDict, json.loads(text[start:end]))
-    mapping = cast(list[int], parsed["mapping"])
+    parsed = _parse_json_response(text)
+
+    if isinstance(parsed, dict) and "mapping" in parsed:
+        mapping = cast(list[int], parsed["mapping"])
+    elif isinstance(parsed, list) and parsed and isinstance(parsed[0], int):
+        mapping = cast(list[int], parsed)
+    else:
+        # Unparseable response — return groups as-is rather than crashing.
+        return groups
 
     merged: dict[int, list[Path]] = {}
     for original_idx, canonical_idx in enumerate(mapping):
