@@ -172,8 +172,9 @@ class ProcessWorkflow:
             enhanced = self._run_stage(
                 item_state.stage_records,
                 "enhance_photos",
-                lambda fe=filtered_for_enhance: [
-                    enhance_photo(photo, enhanced_root, self._client) for photo in fe
+                lambda fe=filtered_for_enhance, i=idx: [
+                    enhance_photo(photo, enhanced_root, self._client, output_stem=f"item-{i}-{n}")
+                    for n, photo in enumerate(fe, start=1)
                 ],
                 details=lambda v: {"count": len(v)},
             )

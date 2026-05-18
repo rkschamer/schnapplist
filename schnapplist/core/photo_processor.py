@@ -389,10 +389,11 @@ def _apply_enhancement(source: Path, params: JsonDict) -> Image.Image:
     return img
 
 
-def enhance_photo(source: Path, output_dir: Path, client: LLMClient | None = None) -> Path:
+def enhance_photo(source: Path, output_dir: Path, client: LLMClient | None = None, output_stem: str | None = None) -> Path:
     """Iteratively enhance a photo using an LLM feedback loop. Returns output path."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"enhanced_{source.stem}.jpg"
+    stem = output_stem if output_stem is not None else f"enhanced_{source.stem}"
+    output_path = output_dir / f"{stem}.jpg"
 
     params = _get_enhancement_params(source, client) if client is not None else dict(_ENHANCE_DEFAULTS)
 
