@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+from schnapplist.core.models import ItemCondition, KleinanzeigenListingOptions, PriceInfo
+from schnapplist.workflows.item_research_agent import ItemResearchOutput
+
+
+def test_item_research_output_round_trips():
+    output = ItemResearchOutput(
+        name="Sony WH-1000XM5",
+        brand="Sony",
+        model="WH-1000XM5",
+        condition=ItemCondition.GOOD,
+        condition_notes="Minor scratches on headband",
+        title_de="Sony WH-1000XM5 Kopfhörer",
+        description_de="Hochwertige Kopfhörer mit aktiver Geräuschunterdrückung.",
+        specs={"Typ": "Over-Ear", "Konnektivität": "Bluetooth 5.2"},
+        keywords=["Sony", "Kopfhörer", "ANC"],
+        category="Electronics",
+        price_info=PriceInfo(
+            suggested_price=180.0,
+            min_price=150.0,
+            max_price=220.0,
+            reasoning="Current market",
+        ),
+        ka_options=KleinanzeigenListingOptions(),
+        ebay_options=None,
+    )
+    assert output.name == "Sony WH-1000XM5"
+    assert output.specs["Typ"] == "Over-Ear"
+    assert output.ka_options is not None
+
+
+def test_item_research_output_minimal():
+    """ka_options and ebay_options can both be None."""
+    output = ItemResearchOutput(
+        name="Unknown",
+        brand=None,
+        model=None,
+        condition=ItemCondition.ACCEPTABLE,
+        condition_notes="",
+        title_de="Unbekanntes Gerät",
+        description_de="Beschreibung fehlt.",
+        specs={},
+        keywords=[],
+        category="Other",
+        price_info=PriceInfo(
+            suggested_price=5.0,
+            min_price=1.0,
+            max_price=10.0,
+            reasoning="No data",
+        ),
+        ka_options=None,
+        ebay_options=None,
+    )
+    assert output.brand is None
+    assert output.specs == {}
