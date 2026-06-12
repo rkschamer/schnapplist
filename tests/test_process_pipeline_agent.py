@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
-import pytest
+from PIL import Image
 
-from schnapplist.workflows.process_pipeline import DecisionCallback, ProcessWorkflow
+from schnapplist.workflows.process_pipeline import ProcessWorkflow
 
 
 def _make_mock_client():
@@ -42,7 +41,6 @@ def _make_mock_output(name: str = "Test Item"):
 def test_pipeline_uses_agent_on_success(tmp_path):
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
-    from PIL import Image
     img = Image.new("RGB", (10, 10))
     img.save(photos_dir / "item.jpg", "JPEG")
 
@@ -68,7 +66,6 @@ def test_pipeline_uses_agent_on_success(tmp_path):
 def test_pipeline_calls_decision_callback_on_agent_failure(tmp_path):
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
-    from PIL import Image
     img = Image.new("RGB", (10, 10))
     img.save(photos_dir / "item.jpg", "JPEG")
 
@@ -94,7 +91,6 @@ def test_pipeline_calls_decision_callback_on_agent_failure(tmp_path):
 def test_pipeline_retries_then_skips(tmp_path):
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
-    from PIL import Image
     img = Image.new("RGB", (10, 10))
     img.save(photos_dir / "item.jpg", "JPEG")
 
