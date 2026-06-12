@@ -6,172 +6,19 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..core.models import Item
 
 import click
 from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
 from rich.rule import Rule
 from rich.table import Table
 
+from .display import RichDecisionCallback, RichLiveCallback
+
 console = Console()
-
-
-# ---------------------------------------------------------------------------
-# RichProgressCallback — translates workflow events to Rich progress display
-# ---------------------------------------------------------------------------
-
-class _RichProgressCallback:
-    """Drives a Rich Progress context from ProcessWorkflow events."""
-
-    def __init__(self) -> None:
-        self._progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(),
-            MofNCompleteColumn(),
-            TimeElapsedColumn(),
-            console=console,
-            transient=False,
-        )
-        self._scan_task_id: Any = None
-        self._group_task_id: Any = None
-        self._items_task_id: Any = None
-        self._item_task_ids: dict[int, Any] = {}
-        self._report_task_id: Any = None
-        self._total_items: int = 0
-
-        # Add placeholder tasks immediately so the progress bar renders cleanly
-        self._scan_task_id = self._progress.add_task("Scanning photos…", total=None)
-
-    def __enter__(self) -> "_RichProgressCallback":
-        self._progress.__enter__()
-        return self
-
-    def __exit__(self, *args: Any) -> None:
-        self._progress.__exit__(*args)
-
-    def stop(self) -> None:
-        self._progress.stop()
-
-    def start(self) -> None:
-        self._progress.start()
-
-    def __call__(self, event: str, **kwargs: Any) -> None:
-        p = self._progress
-        if event == "scan_done":
-            count = kwargs["count"]
-            p.update(
-                self._scan_task_id,
-                description=f"Found [bold]{count}[/bold] photo(s)",
-                total=1,
-                completed=1,
-            )
-            self._group_task_id = p.add_task("Grouping photos by item…", total=None)
-
-        elif event == "group_done":
-            count = kwargs["count"]
-            self._total_items = count
-            if self._group_task_id is not None:
-                p.update(
-                    self._group_task_id,
-                    description=f"Identified [bold]{count}[/bold] item group(s)",
-                    total=1,
-                    completed=1,
-                )
-            self._items_task_id = p.add_task("Processing items…", total=count)
-
-        elif event == "item_start":
-            idx, total = kwargs["idx"], kwargs["total"]
-            task_id = p.add_task(
-                f"[cyan]Item {idx}/{total}[/cyan] — starting…",
-                total=3,
-            )
-            self._item_task_ids[idx] = task_id
-
-        elif event == "item_stage":
-            idx, stage = kwargs["idx"], kwargs["stage"]
-            task_id = self._item_task_ids.get(idx)
-            total = self._total_items
-            label = f"[cyan]Item {idx}/{total}[/cyan]"
-            stage_labels = {
-                "filter": "filtering photos…",
-                "enhance": "enhancing photos…",
-                "analyze": "analyzing item…",
-                "image_search": "image search…",
-                "web_search": "web search…",
-                "price": "researching price…",
-                "report": "writing report…",
-            }
-            desc = stage_labels.get(stage, f"{stage}…")
-            if task_id is not None:
-                p.update(task_id, description=f"{label} — {desc}")
-                if stage in ("enhance", "analyze", "report"):
-                    p.advance(task_id)
-
-        elif event == "item_done":
-            idx, name, price = kwargs["idx"], kwargs["name"], kwargs["price"]
-            task_id = self._item_task_ids.get(idx)
-            total = self._total_items
-            if task_id is not None:
-                p.update(
-                    task_id,
-                    description=(
-                        f"[cyan]Item {idx}/{total}[/cyan] [green]✓[/green] "
-                        f"[bold]{name}[/bold]  {price}"
-                    ),
-                )
-            if self._items_task_id is not None:
-                p.advance(self._items_task_id)
-
-        elif event == "report_done":
-            pass
-
-        elif event == "warning":
-            console.print(f"  [yellow]⚠[/yellow] {kwargs.get('message', '')}")
-
-
-# ---------------------------------------------------------------------------
-# RichDecisionCallback — prompts the user via Rich when an item fails
-# ---------------------------------------------------------------------------
-
-class _RichDecisionCallback:
-    """Prompts the user via Rich when an item fails."""
-
-    def __init__(self, console: Console, progress_cb: _RichProgressCallback) -> None:
-        self._console = console
-        self._progress_cb = progress_cb
-
-    def __call__(self, event: str, **kwargs: Any) -> str:
-        if event == "item_failed":
-            idx = kwargs.get("idx", "?")
-            name = kwargs.get("name", "unknown")
-            error = kwargs.get("error", "")
-            self._progress_cb.stop()
-            self._console.print(
-                f"\n[yellow]⚠[/yellow] Agent failed for item {idx} "
-                f"([bold]{name}[/bold]): {error}"
-            )
-            choice = click.prompt(
-                "  What would you like to do?",
-                type=click.Choice(["r", "s"], case_sensitive=False),
-                default="s",
-                show_choices=False,
-                prompt_suffix=" ([r]etry / [s]kip) ",
-            )
-            self._progress_cb.start()
-            return "retry" if choice == "r" else "skip"
-        return "skip"
 
 
 # ---------------------------------------------------------------------------
@@ -237,8 +84,8 @@ def process(
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
     from ..services.process_service import run_process
 
-    rich_cb = _RichProgressCallback()
-    decision_cb = _RichDecisionCallback(console, rich_cb)
+    rich_cb = RichLiveCallback()
+    decision_cb = RichDecisionCallback(rich_cb)
     try:
         with rich_cb:
             result = run_process(
