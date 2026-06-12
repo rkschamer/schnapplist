@@ -20,7 +20,7 @@ from ..core.photo_processor import (
     load_photos,
 )
 from ..core.report_generator import write_item_report
-from .item_research_agent import ItemResearchOutput, run_item_research_agent
+from .item_research_agent import AgentResult, ItemResearchOutput, run_item_research_agent
 
 _T = TypeVar("_T")
 
@@ -37,6 +37,8 @@ class ProgressCallback(Protocol):
       item_start     idx: int, total: int
       item_stage     idx: int, stage: str
       item_done      idx: int, name: str, price: str
+      item_usage     idx: int, input_tokens: int, output_tokens: int,
+                     cache_read_tokens: int, requests: int, tool_calls: int
       report_done    path: Path
       warning        message: str
     """
@@ -203,13 +205,29 @@ class ProcessWorkflow:
             while agent_output is None:
                 try:
                     filtered_for_agent = list(filtered)
-                    agent_output = self._run_stage(
+                    _current_idx = idx
+                    agent_result = self._run_stage(
                         item_state.stage_records,
                         "item_research_agent",
-                        lambda fa=filtered_for_agent: run_item_research_agent(fa, self._client),
+                        lambda fa=filtered_for_agent, _idx=_current_idx: run_item_research_agent(
+                            fa,
+                            self._client,
+                            on_stage=lambda stage: self._emit("item_stage", idx=_idx, stage=stage),
+                        ),
                     )
+                    agent_output = agent_result.output
                     item_state.item_name = agent_output.name
                     item_state.condition = agent_output.condition.value
+                    u = agent_result.usage
+                    self._emit(
+                        "item_usage",
+                        idx=idx,
+                        input_tokens=u.input_tokens,
+                        output_tokens=u.output_tokens,
+                        cache_read_tokens=u.cache_read_tokens,
+                        requests=u.requests,
+                        tool_calls=u.tool_calls,
+                    )
                 except Exception as exc:
                     decision = self._on_decision(
                         "item_failed",

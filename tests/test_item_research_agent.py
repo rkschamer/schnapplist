@@ -107,7 +107,7 @@ def test_run_item_research_agent_returns_output(tmp_path):
 
         result = run_item_research_agent([photo], mock_client)
 
-    assert result.name == "Canon EOS 400D"
+    assert result.output.name == "Canon EOS 400D"
     mock_agent.run_sync.assert_called_once()
 
 

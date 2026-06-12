@@ -7,13 +7,14 @@ import io
 import json
 import os
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
 from PIL import Image
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 
 from ..config import (
     ANTHROPIC_API_KEY,
@@ -49,6 +50,12 @@ class ItemResearchOutput(BaseModel):
     price_info: PriceInfo
     ka_options: KleinanzeigenListingOptions | None
     ebay_options: EbayListingOptions | None
+
+
+@dataclass
+class AgentResult:
+    output: ItemResearchOutput
+    usage: RunUsage
 
 
 _SYSTEM_PROMPT = """\
@@ -179,8 +186,8 @@ def run_item_research_agent(
     photos: list[Path],
     client: LLMClient,
     on_stage: Callable[[str], None] | None = None,
-) -> ItemResearchOutput:
-    """Run the ReAct agent and return verified item research output."""
+) -> AgentResult:
+    """Run the ReAct agent and return verified item research output with usage stats."""
     agent = _build_agent(on_stage=on_stage)
     deps = _AgentDeps(photos=photos, client=client)
     result = agent.run_sync(
@@ -188,7 +195,7 @@ def run_item_research_agent(
         deps=deps,
         usage_limits=UsageLimits(request_limit=_MAX_AGENT_ITERATIONS),
     )
-    return result.output
+    return AgentResult(output=result.output, usage=result.usage())
 
 
 def _resolve_model_name() -> str:
