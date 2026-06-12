@@ -10,7 +10,7 @@ provider = "ollama"
 # Model to use. Leave commented to get the provider default.
 # Anthropic default: claude-sonnet-4-6
 # Ollama default:    qwen3:14b
-model = "gemma4:12b"
+model = "qwen3.6:35b"
 
 # Ollama server URL (only used when provider = "ollama")
 ollama_host = "http://localhost:11434"
