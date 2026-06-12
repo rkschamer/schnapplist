@@ -113,14 +113,12 @@ def test_run_item_research_agent_returns_output(tmp_path):
 
 def test_on_stage_fires_when_tools_called(tmp_path):
     """on_stage is called with the correct tool name when each tool executes."""
-    from unittest.mock import MagicMock, patch
     from schnapplist.workflows.item_research_agent import _build_agent, _AgentDeps
 
     on_stage = MagicMock()
     mock_client = MagicMock()
 
     img_path = tmp_path / "item.jpg"
-    from PIL import Image
     Image.new("RGB", (10, 10)).save(img_path, "JPEG")
 
     with patch("schnapplist.workflows.item_research_agent._resolve_model_name", return_value="test"):
@@ -130,6 +128,7 @@ def test_on_stage_fires_when_tools_called(tmp_path):
     ctx = MagicMock()
     ctx.deps = deps
 
+    # _function_toolset is a private pydantic-ai internal; may break on upgrades
     analyze_fn = agent._function_toolset.tools["analyze_photos"].function
     web_search_fn = agent._function_toolset.tools["web_search"].function
 
