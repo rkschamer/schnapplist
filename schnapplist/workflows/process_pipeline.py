@@ -40,7 +40,7 @@ class ProgressCallback(Protocol):
       item_usage     idx: int, input_tokens: int, output_tokens: int,
                      cache_read_tokens: int, requests: int, tool_calls: int
       report_done    path: Path
-      warning        message: str
+      warning        idx: int, message: str
     """
 
     def __call__(self, event: str, **kwargs: Any) -> None: ...
@@ -237,7 +237,7 @@ class ProcessWorkflow:
                     if decision == "retry" and attempts < _MAX_RETRIES:
                         attempts += 1
                         continue
-                    self._emit("warning", message=f"Skipping item {idx}: {exc}")
+                    self._emit("warning", idx=idx, message=f"Skipping item {idx}: {exc}")
                     break
 
             if agent_output is None:

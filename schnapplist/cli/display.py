@@ -93,9 +93,9 @@ def apply_event(state: RunState, event: str, **kwargs: Any) -> None:
             state.items[idx].status = "done"
             state.items[idx].name = kwargs["name"]
             state.items[idx].price = kwargs["price"]
-        state.completed_items += 1
-        if state.active_idx == idx:
-            state.active_idx = None
+            state.completed_items += 1
+            if state.active_idx == idx:
+                state.active_idx = None
 
     elif event == "item_usage":
         state.input_tokens += kwargs.get("input_tokens", 0)
@@ -167,26 +167,26 @@ def _render_items(state: RunState) -> Panel:
 
         if row.status == "done":
             icon = "[green]✓[/green]"
-            name_cell = f"[bold]{row.name}[/bold]"
-            price_cell = f"[green]{row.price}[/green]"
+            name_cell = Text(row.name, style="bold")
+            price_cell = Text(row.price, style="green")
         elif row.status in ("skipped", "failed"):
             icon = "[red]✗[/red]"
-            name_cell = f"[dim]{row.name or 'skipped'}[/dim]"
-            price_cell = ""
+            name_cell = Text(row.name or "skipped", style="dim")
+            price_cell = Text("")
         elif row.status == "active":
             icon = "[cyan]⠸[/cyan]"
             stage_label = row.stage.replace("_", " ") + "…" if row.stage else "starting…"
-            name_cell = f"[cyan]{stage_label}[/cyan]"
-            price_cell = ""
+            name_cell = Text(stage_label, style="cyan")
+            price_cell = Text("")
         else:
             icon = " "
-            name_cell = "[dim]queued[/dim]"
-            price_cell = ""
+            name_cell = Text("queued", style="dim")
+            price_cell = Text("")
 
         table.add_row(icon, label, name_cell, price_cell)
 
     if not state.items:
-        table.add_row("", "", "[dim]Waiting for items…[/dim]", "")
+        table.add_row("", "", Text("Waiting for items…", style="dim"), Text(""))
 
     return Panel(table, title="[bold]Items[/bold]")
 
