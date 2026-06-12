@@ -205,11 +205,10 @@ class ProcessWorkflow:
             while agent_output is None:
                 try:
                     filtered_for_agent = list(filtered)
-                    _current_idx = idx
-                    agent_result = self._run_stage(
+                    agent_result: AgentResult = self._run_stage(
                         item_state.stage_records,
                         "item_research_agent",
-                        lambda fa=filtered_for_agent, _idx=_current_idx: run_item_research_agent(
+                        lambda fa=filtered_for_agent, _idx=idx: run_item_research_agent(
                             fa,
                             self._client,
                             on_stage=lambda stage: self._emit("item_stage", idx=_idx, stage=stage),

@@ -159,6 +159,7 @@ def test_pipeline_emits_item_usage(tmp_path):
     assert usage_events[0][1]["idx"] == 1
     assert usage_events[0][1]["output_tokens"] == 50
     assert usage_events[0][1]["input_tokens"] == 100
+    assert usage_events[0][1]["cache_read_tokens"] == 20
 
 
 def test_pipeline_passes_on_stage_to_agent(tmp_path):
