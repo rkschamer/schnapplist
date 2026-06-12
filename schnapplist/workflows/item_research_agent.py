@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from PIL import Image
 from pydantic import BaseModel
@@ -76,9 +77,6 @@ def _encode_photo(path: Path) -> tuple[str, str]:
 
 def _analyze_photos_impl(photos: list[Path], client: LLMClient) -> JsonDict:
     """Vision call: identify item, return identification fields only."""
-    import json
-    from typing import cast
-
     content: list[JsonDict] = []
     for photo in photos:
         data, media_type = _encode_photo(photo)

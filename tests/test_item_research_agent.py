@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from PIL import Image
+
 from schnapplist.core.models import ItemCondition, KleinanzeigenListingOptions, PriceInfo
 from schnapplist.workflows.item_research_agent import ItemResearchOutput, _analyze_photos_impl
 
@@ -61,7 +63,6 @@ def test_item_research_output_minimal():
 
 def test_analyze_photos_returns_identification(tmp_path: Path) -> None:
     # Create a minimal 1x1 JPEG
-    from PIL import Image
     img = Image.new("RGB", (1, 1), color=(128, 128, 128))
     photo = tmp_path / "test.jpg"
     img.save(photo, "JPEG")
