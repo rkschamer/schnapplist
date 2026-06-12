@@ -23,3 +23,6 @@ output/
 ollama_data/
 .DS_Store
 *.log
+
+# local photos
+photos/
