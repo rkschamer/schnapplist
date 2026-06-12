@@ -5,20 +5,30 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
 from pathlib import Path
 from typing import Any, cast
 
 from PIL import Image
 from pydantic import BaseModel
+from pydantic_ai import Agent, RunContext
 
+from ..config import (
+    ANTHROPIC_API_KEY,
+    API_IMAGE_MAX_PX,
+    CLAUDE_MODEL,
+    LLM_PROVIDER,
+    OLLAMA_HOST,
+    OLLAMA_MODEL,
+)
+from ..core.llm import LLMClient
 from ..core.models import (
     EbayListingOptions,
     ItemCondition,
     KleinanzeigenListingOptions,
     PriceInfo,
 )
-from ..config import API_IMAGE_MAX_PX
-from ..core.llm import LLMClient
+from ..core.web_search import web_search as _ddg_search
 
 JsonDict = dict[str, Any]
 
@@ -94,3 +104,89 @@ def _analyze_photos_impl(photos: list[Path], client: LLMClient) -> JsonDict:
     text = response.content[0].text
     start, end = text.find("{"), text.rfind("}") + 1
     return cast(JsonDict, json.loads(text[start:end]))
+
+
+# ---------------------------------------------------------------------------
+# Agent
+# ---------------------------------------------------------------------------
+
+_MAX_AGENT_ITERATIONS = 10
+
+_AGENT_SYSTEM_PROMPT = """\
+You are an expert reseller assistant for German marketplaces (Kleinanzeigen, eBay.de).
+
+Your job:
+1. Call analyze_photos to identify the item (name, brand, model, condition).
+2. Call web_search to look up the exact manufacturer specifications for the identified model.
+3. Call web_search to find current prices on kleinanzeigen.de and ebay.de.
+4. If any spec or price is unclear, call web_search again with a refined query.
+5. When you have enough verified information, produce your final structured output.
+
+Rules:
+- NEVER invent specifications. Only include specs confirmed by web search results.
+- If a spec cannot be verified, omit it from the specs dict.
+- The description_de must only mention specs that appear in your specs dict.
+- title_de must be max 60 characters.
+- description_de should be 80-150 words, written for a private German seller.
+- Suggest a fair price based on condition and current market data.
+"""
+
+
+class _AgentDeps:
+    """Dependencies injected into agent tools."""
+
+    def __init__(self, photos: list[Path], client: LLMClient) -> None:
+        self.photos = photos
+        self.client = client
+
+
+def _build_agent() -> Agent[_AgentDeps, ItemResearchOutput]:
+    model_name = _resolve_model_name()
+    agent: Agent[_AgentDeps, ItemResearchOutput] = Agent(
+        model_name,
+        output_type=ItemResearchOutput,
+        deps_type=_AgentDeps,
+        system_prompt=_AGENT_SYSTEM_PROMPT,
+        retries=_MAX_AGENT_ITERATIONS,
+    )
+
+    @agent.tool
+    def analyze_photos(ctx: RunContext[_AgentDeps]) -> JsonDict:
+        """Identify the item from photos. Returns name, brand, model, condition, category, keywords."""
+        return _analyze_photos_impl(ctx.deps.photos, ctx.deps.client)
+
+    @agent.tool
+    def web_search(ctx: RunContext[_AgentDeps], query: str, max_results: int = 8) -> str:
+        """Search the web. Use for spec lookup and price research. Returns newline-separated snippets."""
+        results = _ddg_search(query, max_results=max_results)
+        if not results:
+            return "No results found."
+        return "\n".join(
+            f"- {r['title']}: {r['body'][:200]}"
+            for r in results
+        )
+
+    return agent
+
+
+def run_item_research_agent(photos: list[Path], client: LLMClient) -> ItemResearchOutput:
+    """Run the ReAct agent and return verified item research output."""
+    agent = _build_agent()
+    deps = _AgentDeps(photos=photos, client=client)
+    result = agent.run_sync("Research this item and produce a verified listing.", deps=deps)
+    return result.output
+
+
+def _resolve_model_name() -> str:
+    if LLM_PROVIDER == "anthropic":
+        if not ANTHROPIC_API_KEY:
+            raise RuntimeError("ANTHROPIC_API_KEY is required.")
+        return f"anthropic:{CLAUDE_MODEL}"
+    if LLM_PROVIDER == "ollama":
+        base_url = os.getenv("OLLAMA_BASE_URL", "").strip() or OLLAMA_HOST.strip()
+        base_url = base_url.rstrip("/")
+        if not base_url.endswith("/v1"):
+            base_url = f"{base_url}/v1"
+        os.environ["OLLAMA_BASE_URL"] = base_url
+        return f"ollama:{OLLAMA_MODEL}"
+    raise RuntimeError(f"Unsupported LLM provider: {LLM_PROVIDER!r}")

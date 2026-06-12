@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from PIL import Image
 
@@ -83,3 +83,30 @@ def test_analyze_photos_returns_identification(tmp_path: Path) -> None:
     assert "specs" not in result
     assert "description_de" not in result
     mock_client.messages_create.assert_called_once()
+
+
+def test_run_item_research_agent_returns_output(tmp_path):
+    img = Image.new("RGB", (1, 1))
+    photo = tmp_path / "item.jpg"
+    img.save(photo, "JPEG")
+
+    mock_output = MagicMock()
+    mock_output.output = MagicMock(spec=["name", "brand", "model", "condition",
+        "condition_notes", "title_de", "description_de", "specs", "keywords",
+        "category", "price_info", "ka_options", "ebay_options"])
+    mock_output.output.name = "Canon EOS 400D"
+
+    mock_client = MagicMock()
+
+    with patch(
+        "schnapplist.workflows.item_research_agent._build_agent"
+    ) as mock_build:
+        mock_agent = MagicMock()
+        mock_agent.run_sync.return_value = mock_output
+        mock_build.return_value = mock_agent
+
+        from schnapplist.workflows.item_research_agent import run_item_research_agent
+        result = run_item_research_agent([photo], mock_client)
+
+    assert result.name == "Canon EOS 400D"
+    mock_agent.run_sync.assert_called_once()
