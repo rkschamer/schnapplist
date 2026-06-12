@@ -6,6 +6,7 @@ import base64
 import io
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -141,7 +142,7 @@ class _AgentDeps:
         self.client = client
 
 
-def _build_agent() -> Agent[_AgentDeps, ItemResearchOutput]:
+def _build_agent(on_stage: Callable[[str], None] | None = None) -> Agent[_AgentDeps, ItemResearchOutput]:
     model_name = _resolve_model_name()
     agent: Agent[_AgentDeps, ItemResearchOutput] = Agent(
         model_name,
@@ -154,11 +155,15 @@ def _build_agent() -> Agent[_AgentDeps, ItemResearchOutput]:
     @agent.tool
     def analyze_photos(ctx: RunContext[_AgentDeps]) -> JsonDict:
         """Identify the item from photos. Returns name, brand, model, condition, category, keywords."""
+        if on_stage is not None:
+            on_stage("analyze_photos")
         return _analyze_photos_impl(ctx.deps.photos, ctx.deps.client)
 
     @agent.tool
     def web_search(ctx: RunContext[_AgentDeps], query: str, max_results: int = 8) -> str:
         """Search the web. Use for spec lookup and price research. Returns newline-separated snippets."""
+        if on_stage is not None:
+            on_stage("web_search")
         results = _ddg_search(query, max_results=max_results)
         if not results:
             return "No results found."
@@ -170,9 +175,13 @@ def _build_agent() -> Agent[_AgentDeps, ItemResearchOutput]:
     return agent
 
 
-def run_item_research_agent(photos: list[Path], client: LLMClient) -> ItemResearchOutput:
+def run_item_research_agent(
+    photos: list[Path],
+    client: LLMClient,
+    on_stage: Callable[[str], None] | None = None,
+) -> ItemResearchOutput:
     """Run the ReAct agent and return verified item research output."""
-    agent = _build_agent()
+    agent = _build_agent(on_stage=on_stage)
     deps = _AgentDeps(photos=photos, client=client)
     result = agent.run_sync(
         "Research this item and produce a verified listing.",
