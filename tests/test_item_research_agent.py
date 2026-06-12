@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+from unittest.mock import MagicMock
+
 from schnapplist.core.models import ItemCondition, KleinanzeigenListingOptions, PriceInfo
-from schnapplist.workflows.item_research_agent import ItemResearchOutput
+from schnapplist.workflows.item_research_agent import ItemResearchOutput, _analyze_photos_impl
 
 
 def test_item_research_output_round_trips():
@@ -54,3 +57,28 @@ def test_item_research_output_minimal():
     )
     assert output.brand is None
     assert output.specs == {}
+
+
+def test_analyze_photos_returns_identification(tmp_path: Path) -> None:
+    # Create a minimal 1x1 JPEG
+    from PIL import Image
+    img = Image.new("RGB", (1, 1), color=(128, 128, 128))
+    photo = tmp_path / "test.jpg"
+    img.save(photo, "JPEG")
+
+    mock_client = MagicMock()
+    mock_client.messages_create.return_value = MagicMock(
+        content=[MagicMock(text='{"name": "Sony WH-1000XM5", "brand": "Sony", '
+                                '"model": "WH-1000XM5", "condition": "good", '
+                                '"condition_notes": "light wear", '
+                                '"category": "Electronics", '
+                                '"keywords": ["Sony", "Headphones"]}')]
+    )
+
+    result = _analyze_photos_impl([photo], mock_client)
+
+    assert result["name"] == "Sony WH-1000XM5"
+    assert result["brand"] == "Sony"
+    assert "specs" not in result
+    assert "description_de" not in result
+    mock_client.messages_create.assert_called_once()
