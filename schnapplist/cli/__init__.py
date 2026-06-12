@@ -61,6 +61,12 @@ class _RichProgressCallback:
     def __exit__(self, *args: Any) -> None:
         self._progress.__exit__(*args)
 
+    def stop(self) -> None:
+        self._progress.stop()
+
+    def start(self) -> None:
+        self._progress.start()
+
     def __call__(self, event: str, **kwargs: Any) -> None:
         p = self._progress
         if event == "scan_done":
@@ -142,14 +148,16 @@ class _RichProgressCallback:
 class _RichDecisionCallback:
     """Prompts the user via Rich when an item fails."""
 
-    def __init__(self, console: Console) -> None:
+    def __init__(self, console: Console, progress_cb: _RichProgressCallback) -> None:
         self._console = console
+        self._progress_cb = progress_cb
 
     def __call__(self, event: str, **kwargs: Any) -> str:
         if event == "item_failed":
             idx = kwargs.get("idx", "?")
             name = kwargs.get("name", "unknown")
             error = kwargs.get("error", "")
+            self._progress_cb.stop()
             self._console.print(
                 f"\n[yellow]⚠[/yellow] Agent failed for item {idx} "
                 f"([bold]{name}[/bold]): {error}"
@@ -158,9 +166,10 @@ class _RichDecisionCallback:
                 "  What would you like to do?",
                 type=click.Choice(["r", "s"], case_sensitive=False),
                 default="s",
-                show_choices=True,
+                show_choices=False,
                 prompt_suffix=" ([r]etry / [s]kip) ",
             )
+            self._progress_cb.start()
             return "retry" if choice == "r" else "skip"
         return "skip"
 
@@ -229,7 +238,7 @@ def process(
     from ..services.process_service import run_process
 
     rich_cb = _RichProgressCallback()
-    decision_cb = _RichDecisionCallback(console)
+    decision_cb = _RichDecisionCallback(console, rich_cb)
     try:
         with rich_cb:
             result = run_process(
