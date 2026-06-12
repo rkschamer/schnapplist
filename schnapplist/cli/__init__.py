@@ -89,7 +89,7 @@ class _RichProgressCallback:
             idx, total = kwargs["idx"], kwargs["total"]
             task_id = p.add_task(
                 f"[cyan]Item {idx}/{total}[/cyan] — starting…",
-                total=4,
+                total=3,
             )
             self._item_task_ids[idx] = task_id
 
@@ -110,7 +110,7 @@ class _RichProgressCallback:
             desc = stage_labels.get(stage, f"{stage}…")
             if task_id is not None:
                 p.update(task_id, description=f"{label} — {desc}")
-                if stage in ("enhance", "analyze", "price", "report"):
+                if stage in ("enhance", "analyze", "report"):
                     p.advance(task_id)
 
         elif event == "item_done":

@@ -25,7 +25,7 @@ from .item_research_agent import ItemResearchOutput, run_item_research_agent
 _T = TypeVar("_T")
 
 # Stages executed per item — used to size the per-item progress bar.
-_ITEM_STAGES = ("enhance", "analyze", "price", "report")
+_ITEM_STAGES = ("enhance", "analyze", "report")
 
 
 class ProgressCallback(Protocol):
