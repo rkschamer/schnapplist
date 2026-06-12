@@ -10,7 +10,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Protocol, TypeVar
 
-from ..core.item_analyzer import analyze_item, build_item, is_low_confidence
+from ..core.item_analyzer import build_item
 from ..core.llm import LLMClient
 from ..core.models import Item
 from ..core.photo_processor import (
@@ -19,8 +19,8 @@ from ..core.photo_processor import (
     group_photos_by_item,
     load_photos,
 )
-from ..core.price_researcher import research_price
 from ..core.report_generator import write_item_report
+from .item_research_agent import ItemResearchOutput, run_item_research_agent
 
 _T = TypeVar("_T")
 
@@ -197,62 +197,60 @@ class ProcessWorkflow:
             item_state.enhanced_photos = enhanced
 
             self._emit("item_stage", idx=idx, stage="analyze")
-            filtered_for_analysis = list(filtered)
-            analysis = self._run_stage(
-                item_state.stage_records,
-                "analyze_item",
-                lambda fa=filtered_for_analysis: analyze_item(fa, self._client),
-            )
-            item_state.item_name = str(analysis.get("name", f"Item {idx}"))
-            item_state.condition = str(analysis.get("condition", "good"))
-
-            # Google Lens: only when the LLM could not identify the item at all.
-            if is_low_confidence(analysis) and filtered_for_analysis:
-                from .image_search_agent import identify_via_google_lens
-
-                self._emit("item_stage", idx=idx, stage="image_search")
+            _MAX_RETRIES = 2
+            attempts = 0
+            agent_output: ItemResearchOutput | None = None
+            while agent_output is None:
                 try:
-                    lens_enriched = identify_via_google_lens(filtered_for_analysis[0])
-                    for key, val in lens_enriched.items():
-                        if val and not analysis.get(key):
-                            analysis[key] = val
-                    if lens_enriched.get("name"):
-                        item_state.item_name = str(lens_enriched["name"])
+                    filtered_for_agent = list(filtered)
+                    agent_output = self._run_stage(
+                        item_state.stage_records,
+                        "item_research_agent",
+                        lambda fa=filtered_for_agent: run_item_research_agent(fa, self._client),
+                    )
+                    item_state.item_name = agent_output.name
+                    item_state.condition = agent_output.condition.value
                 except Exception as exc:
-                    self._emit("warning", message=f"Google Lens fallback failed: {exc}")
+                    decision = self._on_decision(
+                        "item_failed",
+                        idx=idx,
+                        name=item_state.item_name or f"Item {idx}",
+                        error=str(exc),
+                    )
+                    if decision == "retry" and attempts < _MAX_RETRIES:
+                        attempts += 1
+                        continue
+                    self._emit("warning", message=f"Skipping item {idx}: {exc}")
+                    break
 
-            # Text search: always — verifies and corrects the current identification.
-            from .image_search_agent import identify_via_text_search
+            if agent_output is None:
+                continue
 
-            self._emit("item_stage", idx=idx, stage="web_search")
-            try:
-                text_enriched = identify_via_text_search(analysis, self._client)
-                # Override existing values — purpose is correction, not just gap-fill.
-                for key, val in text_enriched.items():
-                    if val:
-                        analysis[key] = val
-                if text_enriched.get("name"):
-                    item_state.item_name = str(text_enriched["name"])
-            except Exception as exc:
-                self._emit("warning", message=f"Text search failed: {exc}")
+            _analysis_dict: dict[str, Any] = {
+                "name": agent_output.name,
+                "brand": agent_output.brand,
+                "model": agent_output.model,
+                "condition": agent_output.condition.value,
+                "condition_notes": agent_output.condition_notes,
+                "title_de": agent_output.title_de,
+                "description_de": agent_output.description_de,
+                "keywords": agent_output.keywords,
+                "category": agent_output.category,
+            }
+            if agent_output.ka_options is not None:
+                o = agent_output.ka_options
+                _analysis_dict["ka_category"] = o.ka_category
+                _analysis_dict["ka_shipping"] = o.shipping.value
+                _analysis_dict["ka_shipping_methods"] = o.shipping_methods
+                _analysis_dict["ka_price_type"] = o.price_type.value
+            if agent_output.ebay_options is not None:
+                o2 = agent_output.ebay_options
+                _analysis_dict["ebay_listing_type"] = o2.listing_type.value
+                _analysis_dict["ebay_duration_days"] = o2.duration_days
+                _analysis_dict["ebay_reserve_price"] = o2.reserve_price
 
-            self._emit("item_stage", idx=idx, stage="price")
-            keywords_for_price = list(analysis.get("keywords") or [item_state.item_name])
-            condition_for_price = item_state.condition
-            price_info = self._run_stage(
-                item_state.stage_records,
-                "research_price",
-                lambda kw=keywords_for_price, cond=condition_for_price: research_price(
-                    kw, cond, self._client
-                ),
-                details=lambda v: {
-                    "suggested_price": v.suggested_price,
-                    "currency": v.currency,
-                },
-            )
-
-            item = build_item(analysis, filtered, enhanced)
-            item.price_info = price_info
+            item = build_item(_analysis_dict, filtered, enhanced)
+            item.price_info = agent_output.price_info
             if marketplace:
                 item.marketplace = marketplace
             items.append(item)
@@ -261,8 +259,8 @@ class ProcessWorkflow:
             write_item_report(item, idx, run_dir)
 
             price_str = (
-                f"{price_info.suggested_price:.2f} {price_info.currency}"
-                if price_info
+                f"{agent_output.price_info.suggested_price:.2f} {agent_output.price_info.currency}"
+                if agent_output.price_info
                 else "—"
             )
             self._emit("item_done", idx=idx, name=item_state.item_name, price=price_str)
