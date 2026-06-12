@@ -7,6 +7,7 @@ from pathlib import Path
 from ..config import CLAUDE_MODEL, LLM_PROVIDER, OLLAMA_HOST, OLLAMA_MODEL
 from ..core.llm import LLMClient
 from ..workflows.process_pipeline import (
+    DecisionCallback,
     ProcessRunResult,
     ProcessWorkflow,
     ProgressCallback,
@@ -23,6 +24,7 @@ def run_process(
     llm_model: str | None = None,
     ollama_host: str | None = None,
     on_progress: ProgressCallback | None = None,
+    on_decision: DecisionCallback | None = None,
 ) -> ProcessRunResult:
     """Analyse photos and write a report.
 
@@ -48,7 +50,7 @@ def run_process(
         host = ollama_host or OLLAMA_HOST
         client = LLMClient("ollama", model, ollama_host=host)
 
-    workflow = ProcessWorkflow(client, on_progress=on_progress)
+    workflow = ProcessWorkflow(client, on_progress=on_progress, on_decision=on_decision)
     return workflow.run(
         photos_dir=photos_dir,
         output_dir=output_dir,

@@ -136,6 +136,36 @@ class _RichProgressCallback:
 
 
 # ---------------------------------------------------------------------------
+# RichDecisionCallback — prompts the user via Rich when an item fails
+# ---------------------------------------------------------------------------
+
+class _RichDecisionCallback:
+    """Prompts the user via Rich when an item fails."""
+
+    def __init__(self, console: Console) -> None:
+        self._console = console
+
+    def __call__(self, event: str, **kwargs: Any) -> str:
+        if event == "item_failed":
+            idx = kwargs.get("idx", "?")
+            name = kwargs.get("name", "unknown")
+            error = kwargs.get("error", "")
+            self._console.print(
+                f"\n[yellow]⚠[/yellow] Agent failed for item {idx} "
+                f"([bold]{name}[/bold]): {error}"
+            )
+            choice = click.prompt(
+                "  What would you like to do?",
+                type=click.Choice(["r", "s"], case_sensitive=False),
+                default="s",
+                show_choices=True,
+                prompt_suffix=" ([r]etry / [s]kip) ",
+            )
+            return "retry" if choice == "r" else "skip"
+        return "skip"
+
+
+# ---------------------------------------------------------------------------
 # process
 # ---------------------------------------------------------------------------
 
@@ -199,6 +229,7 @@ def process(
     from ..services.process_service import run_process
 
     rich_cb = _RichProgressCallback()
+    decision_cb = _RichDecisionCallback(console)
     try:
         with rich_cb:
             result = run_process(
@@ -210,6 +241,7 @@ def process(
                 llm_model=llm_model,
                 ollama_host=ollama_host,
                 on_progress=rich_cb,
+                on_decision=decision_cb,
             )
     except ValueError as exc:
         console.print(f"[red]Error:[/red] {exc}")
