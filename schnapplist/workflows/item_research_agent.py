@@ -12,6 +12,7 @@ from typing import Any, cast
 from PIL import Image
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.usage import UsageLimits
 
 from ..config import (
     ANTHROPIC_API_KEY,
@@ -147,7 +148,7 @@ def _build_agent() -> Agent[_AgentDeps, ItemResearchOutput]:
         output_type=ItemResearchOutput,
         deps_type=_AgentDeps,
         system_prompt=_AGENT_SYSTEM_PROMPT,
-        retries=_MAX_AGENT_ITERATIONS,
+        retries=2,
     )
 
     @agent.tool
@@ -173,7 +174,11 @@ def run_item_research_agent(photos: list[Path], client: LLMClient) -> ItemResear
     """Run the ReAct agent and return verified item research output."""
     agent = _build_agent()
     deps = _AgentDeps(photos=photos, client=client)
-    result = agent.run_sync("Research this item and produce a verified listing.", deps=deps)
+    result = agent.run_sync(
+        "Research this item and produce a verified listing.",
+        deps=deps,
+        usage_limits=UsageLimits(request_limit=_MAX_AGENT_ITERATIONS),
+    )
     return result.output
 
 

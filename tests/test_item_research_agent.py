@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image
 
 from schnapplist.core.models import ItemCondition, KleinanzeigenListingOptions, PriceInfo
-from schnapplist.workflows.item_research_agent import ItemResearchOutput, _analyze_photos_impl
+from schnapplist.workflows.item_research_agent import ItemResearchOutput, _analyze_photos_impl, run_item_research_agent
 
 
 def test_item_research_output_round_trips():
@@ -105,7 +105,6 @@ def test_run_item_research_agent_returns_output(tmp_path):
         mock_agent.run_sync.return_value = mock_output
         mock_build.return_value = mock_agent
 
-        from schnapplist.workflows.item_research_agent import run_item_research_agent
         result = run_item_research_agent([photo], mock_client)
 
     assert result.name == "Canon EOS 400D"
