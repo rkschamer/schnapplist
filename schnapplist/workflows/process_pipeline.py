@@ -44,6 +44,16 @@ class ProgressCallback(Protocol):
     def __call__(self, event: str, **kwargs: Any) -> None: ...
 
 
+class DecisionCallback(Protocol):
+    """Called when an item fails processing. Returns 'retry' or 'skip'."""
+
+    def __call__(self, event: str, **kwargs: Any) -> str: ...
+
+
+def _default_decision_callback(event: str, **kwargs: Any) -> str:
+    return "skip"
+
+
 def _details_factory() -> dict[str, Any]:
     return {}
 
@@ -101,9 +111,15 @@ class ProcessRunResult:
 class ProcessWorkflow:
     """Deterministic processing workflow with explicit run state."""
 
-    def __init__(self, client: LLMClient, on_progress: ProgressCallback | None = None) -> None:
+    def __init__(
+        self,
+        client: LLMClient,
+        on_progress: ProgressCallback | None = None,
+        on_decision: DecisionCallback | None = None,
+    ) -> None:
         self._client = client
         self._on_progress = on_progress
+        self._on_decision = on_decision or _default_decision_callback
 
     def _emit(self, event: str, **kwargs: Any) -> None:
         if self._on_progress is not None:
