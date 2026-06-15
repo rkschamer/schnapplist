@@ -99,7 +99,7 @@ def process(
                 on_progress=rich_cb,
                 on_decision=decision_cb,
             )
-    except ValueError as exc:
+    except (ValueError, RuntimeError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         sys.exit(1)
 
