@@ -115,9 +115,9 @@ After `process` completes and the user closes the `$EDITOR` review:
 5. `[n]`: exits as today
 
 The modal is implemented via the existing `RichLiveCallback.show_modal()` /
-`_read_single_key()` / `RichDecisionCallback` infrastructure in `cli/display.py`.
-A new `RichExportCallback` class (or inline logic in `cli/__init__.py`) handles
-the prompt.
+`_read_single_key()` infrastructure in `cli/display.py`.
+A new `RichExportCallback` class (added to `cli/display.py`, following the same
+pattern as `RichDecisionCallback`) handles the prompt.
 
 ### Standalone command
 
