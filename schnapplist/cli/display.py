@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from rich.align import Align
 from rich.console import Console
 from rich.layout import Layout
 from rich.live import Live
@@ -277,6 +278,23 @@ class RichLiveCallback:
     def start(self) -> None:
         self._live.start()
 
+    def show_modal(self, renderable: Any) -> None:
+        """Replace the body with a centered modal and refresh once."""
+        self._layout["body"].update(Align.center(renderable, vertical="middle"))
+        self._live.refresh()
+
+    def restore_body(self) -> None:
+        """Restore the normal two-column body after a modal."""
+        self._layout["body"].update(self._layout["body"])
+        # Re-split body into items/llm columns
+        self._layout["body"].split_row(
+            Layout(name="items", ratio=2),
+            Layout(name="llm", ratio=1),
+        )
+        self._layout["items"].update(_render_items(self._state))
+        self._layout["llm"].update(_render_llm(self._state))
+        self._live.refresh()
+
     def __call__(self, event: str, **kwargs: Any) -> None:
         apply_event(self._state, event, **kwargs)
         self._layout["header"].update(_render_header(self._state))
@@ -296,24 +314,32 @@ class RichDecisionCallback:
             idx = kwargs.get("idx", "?")
             name = kwargs.get("name", "unknown")
             error = kwargs.get("error", "")
+            modal = Panel(
+                Text.assemble(
+                    (str(error), "dim"),
+                    "\n\n",
+                    ("  [r]  retry     [s]  skip  ", ""),
+                ),
+                title=Text.assemble(
+                    ("⚠  Item ", "bold yellow"),
+                    (str(idx), "bold yellow"),
+                    (" — ", "yellow"),
+                    (str(name), "bold"),
+                ),
+                border_style="yellow",
+                width=60,
+                padding=(1, 2),
+            )
+            self._progress_cb.show_modal(modal)
             self._progress_cb.stop()
-            console.print()
-            console.print(Text.assemble(
-                ("⚠  Item ", "bold yellow"),
-                (str(idx), "bold yellow"),
-                (" — ", "yellow"),
-                (str(name), "bold"),
-                "\n",
-                (str(error), "dim"),
-            ))
             from rich.prompt import Prompt
             choice = Prompt.ask(
-                "\n[yellow]What would you like to do?[/yellow]",
+                "[yellow]>[/yellow]",
                 choices=["r", "s"],
                 default="s",
                 console=console,
             )
-            console.print()
+            self._progress_cb.restore_body()
             self._progress_cb.start()
             return "retry" if choice == "r" else "skip"
         return "skip"
