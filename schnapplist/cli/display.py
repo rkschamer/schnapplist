@@ -6,7 +6,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-import click
 from rich.console import Console
 from rich.layout import Layout
 from rich.live import Live
@@ -299,24 +298,20 @@ class RichDecisionCallback:
             error = kwargs.get("error", "")
             self._progress_cb.stop()
             console.print()
-            console.print(Panel(
-                Text.assemble(
-                    ("Agent failed for item ", "yellow"),
-                    (str(idx), "bold yellow"),
-                    "\n\n",
-                    (str(name), "bold"),
-                    "\n\n",
-                    (str(error), "dim"),
-                ),
-                title="[bold yellow]⚠  Processing Error[/bold yellow]",
-                border_style="yellow",
+            console.print(Text.assemble(
+                ("⚠  Item ", "bold yellow"),
+                (str(idx), "bold yellow"),
+                (" — ", "yellow"),
+                (str(name), "bold"),
+                "\n",
+                (str(error), "dim"),
             ))
-            choice = click.prompt(
-                "  What would you like to do?",
-                type=click.Choice(["r", "s"], case_sensitive=False),
+            from rich.prompt import Prompt
+            choice = Prompt.ask(
+                "\n[yellow]What would you like to do?[/yellow]",
+                choices=["r", "s"],
                 default="s",
-                show_choices=False,
-                prompt_suffix=" ([r]etry / [s]kip) ",
+                console=console,
             )
             console.print()
             self._progress_cb.start()
