@@ -125,7 +125,9 @@ def group_photos_by_item(photos: list[Path], client: LLMClient) -> list[list[Pat
     for batch in batches:
         index_groups = _group_batch(batch, client)
         for idx_list in index_groups:
-            all_groups.append([batch[i] for i in idx_list])
+            photos_in_group = [batch[i] for i in idx_list if 0 <= i < len(batch)]
+            if photos_in_group:
+                all_groups.append(photos_in_group)
 
     # If we had multiple batches, run a second pass to merge groups that are the same item.
     # For now we keep it simple: cross-batch deduplication is done via a lightweight second call
