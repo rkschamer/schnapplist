@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import sys
+import termios
 import time
+import tty
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -318,7 +321,13 @@ class RichDecisionCallback:
                 Text.assemble(
                     (str(error), "dim"),
                     "\n\n",
-                    ("  [r]  retry     [s]  skip  ", ""),
+                    ("  ", ""),
+                    ("[ r ]", "bold black on yellow"),
+                    ("  retry      ", ""),
+                    ("[ s ]", "bold black on white"),
+                    ("  skip", ""),
+                    "\n\n",
+                    ("  press a key…", "dim italic"),
                 ),
                 title=Text.assemble(
                     ("⚠  Item ", "bold yellow"),
@@ -331,15 +340,33 @@ class RichDecisionCallback:
                 padding=(1, 2),
             )
             self._progress_cb.show_modal(modal)
-            self._progress_cb.stop()
-            from rich.prompt import Prompt
-            choice = Prompt.ask(
-                "[yellow]>[/yellow]",
-                choices=["r", "s"],
-                default="s",
-                console=console,
-            )
-            self._progress_cb.restore_body()
-            self._progress_cb.start()
+            try:
+                choice = _read_single_key({"r", "s"}, default="s")
+            finally:
+                self._progress_cb.restore_body()
             return "retry" if choice == "r" else "skip"
         return "skip"
+
+
+def _read_single_key(allowed: set[str], default: str) -> str:
+    """Read a single keypress from stdin in raw mode without echoing.
+
+    Returns the lowercased key if it's in `allowed`, otherwise `default`.
+    Falls back to the default if stdin isn't a TTY.
+    """
+    if not sys.stdin.isatty():
+        return default
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        while True:
+            ch = sys.stdin.read(1).lower()
+            if ch in ("\x03", "\x04"):  # Ctrl-C / Ctrl-D
+                raise KeyboardInterrupt
+            if ch in ("\r", "\n"):
+                return default
+            if ch in allowed:
+                return ch
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
