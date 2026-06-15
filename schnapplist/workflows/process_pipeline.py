@@ -10,6 +10,8 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Protocol, TypeVar
 
+from pydantic_ai.usage import RunUsage
+
 from ..core.item_analyzer import build_item
 from ..core.llm import LLMClient
 from ..core.models import Item
@@ -205,6 +207,21 @@ class ProcessWorkflow:
             while agent_output is None:
                 try:
                     filtered_for_agent = list(filtered)
+                    _prev: list[RunUsage] = [RunUsage()]
+
+                    def _on_usage(u: RunUsage, _idx: int = idx) -> None:
+                        prev = _prev[0]
+                        self._emit(
+                            "item_usage",
+                            idx=_idx,
+                            input_tokens=u.input_tokens - prev.input_tokens,
+                            output_tokens=u.output_tokens - prev.output_tokens,
+                            cache_read_tokens=u.cache_read_tokens - prev.cache_read_tokens,
+                            requests=u.requests - prev.requests,
+                            tool_calls=u.tool_calls - prev.tool_calls,
+                        )
+                        _prev[0] = u
+
                     agent_result: AgentResult = self._run_stage(
                         item_state.stage_records,
                         "item_research_agent",
@@ -212,21 +229,12 @@ class ProcessWorkflow:
                             fa,
                             self._client,
                             on_stage=lambda stage: self._emit("item_stage", idx=_idx, stage=stage),
+                            on_usage=_on_usage,
                         ),
                     )
                     agent_output = agent_result.output
                     item_state.item_name = agent_output.name
                     item_state.condition = agent_output.condition.value
-                    u = agent_result.usage
-                    self._emit(
-                        "item_usage",
-                        idx=idx,
-                        input_tokens=u.input_tokens,
-                        output_tokens=u.output_tokens,
-                        cache_read_tokens=u.cache_read_tokens,
-                        requests=u.requests,
-                        tool_calls=u.tool_calls,
-                    )
                 except Exception as exc:
                     decision = self._on_decision(
                         "item_failed",

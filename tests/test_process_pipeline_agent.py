@@ -124,7 +124,7 @@ def test_pipeline_retries_then_skips(tmp_path):
 
 
 def test_pipeline_emits_item_usage(tmp_path):
-    """item_usage event is emitted after each successful agent run."""
+    """item_usage event is emitted live via on_usage callback during agent run."""
     from pydantic_ai.usage import RunUsage
     from schnapplist.workflows.item_research_agent import AgentResult
 
@@ -133,19 +133,23 @@ def test_pipeline_emits_item_usage(tmp_path):
     Image.new("RGB", (10, 10)).save(photos_dir / "item.jpg", "JPEG")
 
     mock_output = _make_mock_output("Test Item")
-    agent_result = AgentResult(
-        output=mock_output,
-        usage=RunUsage(input_tokens=100, output_tokens=50, cache_read_tokens=20, requests=3, tool_calls=2),
-    )
+    agent_result = _make_agent_result(mock_output)
 
     events = []
     progress_cb = lambda event, **kwargs: events.append((event, kwargs))
+
+    def fake_agent(photos, client, on_stage=None, on_usage=None):
+        # Simulate two mid-run usage callbacks (cumulative) then return
+        if on_usage is not None:
+            on_usage(RunUsage(input_tokens=50, output_tokens=25, cache_read_tokens=10, requests=1, tool_calls=1))
+            on_usage(RunUsage(input_tokens=100, output_tokens=50, cache_read_tokens=20, requests=3, tool_calls=2))
+        return agent_result
 
     with (
         patch("schnapplist.workflows.process_pipeline.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
         patch("schnapplist.workflows.process_pipeline.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
         patch("schnapplist.workflows.process_pipeline.enhance_photo", return_value=photos_dir / "item.jpg"),
-        patch("schnapplist.workflows.process_pipeline.run_item_research_agent", return_value=agent_result),
+        patch("schnapplist.workflows.process_pipeline.run_item_research_agent", side_effect=fake_agent),
         patch("schnapplist.workflows.process_pipeline.write_item_report"),
     ):
         ProcessWorkflow(MagicMock(), on_progress=progress_cb).run(
@@ -155,11 +159,15 @@ def test_pipeline_emits_item_usage(tmp_path):
         )
 
     usage_events = [e for e in events if e[0] == "item_usage"]
-    assert len(usage_events) == 1
+    assert len(usage_events) == 2
     assert usage_events[0][1]["idx"] == 1
-    assert usage_events[0][1]["output_tokens"] == 50
-    assert usage_events[0][1]["input_tokens"] == 100
-    assert usage_events[0][1]["cache_read_tokens"] == 20
+    # First delta: 50 in, 25 out
+    assert usage_events[0][1]["output_tokens"] == 25
+    assert usage_events[0][1]["input_tokens"] == 50
+    # Second delta: 50 more in, 25 more out
+    assert usage_events[1][1]["output_tokens"] == 25
+    assert usage_events[1][1]["input_tokens"] == 50
+    assert usage_events[1][1]["cache_read_tokens"] == 10
 
 
 def test_pipeline_passes_on_stage_to_agent(tmp_path):

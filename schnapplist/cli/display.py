@@ -301,10 +301,19 @@ class RichDecisionCallback:
             name = kwargs.get("name", "unknown")
             error = kwargs.get("error", "")
             self._progress_cb.stop()
-            console.print(
-                f"\n[yellow]⚠[/yellow] Agent failed for item {idx} "
-                f"([bold]{name}[/bold]): {error}"
-            )
+            console.print()
+            console.print(Panel(
+                Text.assemble(
+                    ("Agent failed for item ", "yellow"),
+                    (str(idx), "bold yellow"),
+                    "\n\n",
+                    (str(name), "bold"),
+                    "\n\n",
+                    (str(error), "dim"),
+                ),
+                title="[bold yellow]⚠  Processing Error[/bold yellow]",
+                border_style="yellow",
+            ))
             choice = click.prompt(
                 "  What would you like to do?",
                 type=click.Choice(["r", "s"], case_sensitive=False),
@@ -312,6 +321,7 @@ class RichDecisionCallback:
                 show_choices=False,
                 prompt_suffix=" ([r]etry / [s]kip) ",
             )
+            console.print()
             self._progress_cb.start()
             return "retry" if choice == "r" else "skip"
         return "skip"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import json
@@ -186,16 +187,25 @@ def run_item_research_agent(
     photos: list[Path],
     client: LLMClient,
     on_stage: Callable[[str], None] | None = None,
+    on_usage: Callable[[RunUsage], None] | None = None,
 ) -> AgentResult:
     """Run the ReAct agent and return verified item research output with usage stats."""
     agent = _build_agent(on_stage=on_stage)
     deps = _AgentDeps(photos=photos, client=client)
-    result = agent.run_sync(
-        "Research this item and produce a verified listing.",
-        deps=deps,
-        usage_limits=UsageLimits(request_limit=_MAX_AGENT_ITERATIONS),
-    )
-    return AgentResult(output=result.output, usage=result.usage())
+
+    async def _run() -> AgentResult:
+        from pydantic_ai._agent_graph import CallToolsNode  # noqa: PLC0415
+        async with agent.iter(
+            "Research this item and produce a verified listing.",
+            deps=deps,
+            usage_limits=UsageLimits(request_limit=_MAX_AGENT_ITERATIONS),
+        ) as run:
+            async for node in run:
+                if isinstance(node, CallToolsNode) and on_usage is not None:
+                    on_usage(run.usage())
+        return AgentResult(output=run.result.output, usage=run.result.usage())
+
+    return asyncio.run(_run())
 
 
 def _resolve_model_name() -> str:

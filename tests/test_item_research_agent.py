@@ -90,25 +90,38 @@ def test_run_item_research_agent_returns_output(tmp_path):
     photo = tmp_path / "item.jpg"
     img.save(photo, "JPEG")
 
-    mock_output = MagicMock()
-    mock_output.output = MagicMock(spec=["name", "brand", "model", "condition",
-        "condition_notes", "title_de", "description_de", "specs", "keywords",
-        "category", "price_info", "ka_options", "ebay_options"])
-    mock_output.output.name = "Canon EOS 400D"
-
+    from tests.test_process_pipeline_agent import _make_mock_output
+    mock_output = _make_mock_output("Canon EOS 400D")
     mock_client = MagicMock()
 
-    with patch(
-        "schnapplist.workflows.item_research_agent._build_agent"
-    ) as mock_build:
+    with patch("schnapplist.workflows.item_research_agent._build_agent") as mock_build:
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _fake_iter(*args, **kwargs):
+            class _FakeRun:
+                class result:
+                    output = mock_output
+                    @staticmethod
+                    def usage():
+                        from pydantic_ai.usage import RunUsage
+                        return RunUsage()
+
+                def __aiter__(self):
+                    return self
+
+                async def __anext__(self):
+                    raise StopAsyncIteration
+
+            yield _FakeRun()
+
         mock_agent = MagicMock()
-        mock_agent.run_sync.return_value = mock_output
+        mock_agent.iter = _fake_iter
         mock_build.return_value = mock_agent
 
         result = run_item_research_agent([photo], mock_client)
 
     assert result.output.name == "Canon EOS 400D"
-    mock_agent.run_sync.assert_called_once()
 
 
 def test_on_stage_fires_when_tools_called(tmp_path):
