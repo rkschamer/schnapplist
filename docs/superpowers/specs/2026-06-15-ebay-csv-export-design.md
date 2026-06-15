@@ -95,23 +95,26 @@ def export_to_csv(items: list[Item], output_path: Path) -> int:
 
 ### Post-process modal
 
-After `process` completes and the user closes the `$EDITOR` review:
+After `process` completes and the user closes the `$EDITOR` review, the reports
+are re-parsed into `Item` objects. Then:
 
-1. Count approved items with `marketplace="ebay"`
-2. If count is 0: exit as today — no modal shown
-3. If count ≥ 1: show a Rich modal (same style as `item_failed` modal):
+1. Check whether any item has `marketplace="ebay"` (regardless of `approved` status)
+2. If none: exit as today — no modal shown
+3. If any: show a Rich modal (same style as `item_failed` modal):
    ```
    ┌─ eBay CSV Export ──────────────────────────────┐
    │                                                  │
-   │   2 approved eBay item(s) ready for export.     │
+   │   eBay items found. Generate CSV for all        │
+   │   approved ones?                                 │
    │                                                  │
    │   [ y ]  generate CSV      [ n ]  skip          │
    │                                                  │
    │   press a key…                                   │
    └──────────────────────────────────────────────────┘
    ```
-4. `[y]`: calls `export_to_csv()`, writes `<run-folder>/ebay-export.csv`, shows
-   success panel with path and count, then exits
+4. `[y]`: calls `export_to_csv()` (which filters to `approved=True`), writes
+   `<run-folder>/ebay-export.csv`, shows success panel with path and count
+   (may be 0 if no items were approved), then exits
 5. `[n]`: exits as today
 
 The modal is implemented via the existing `RichLiveCallback.show_modal()` /
