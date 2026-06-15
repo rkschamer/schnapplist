@@ -83,6 +83,7 @@ def apply_event(state: RunState, event: str, **kwargs: Any) -> None:
         if idx in state.items:
             state.items[idx].stage = stage
         if stage in _TOOL_STAGES:
+            state.tool_calls += 1
             state.tool_log.append(ToolLogEntry(tool=stage))
             if len(state.tool_log) > _MAX_TOOL_LOG:
                 state.tool_log = state.tool_log[-_MAX_TOOL_LOG:]
@@ -103,7 +104,6 @@ def apply_event(state: RunState, event: str, **kwargs: Any) -> None:
         state.output_tokens += out
         state.cache_tokens += kwargs.get("cache_read_tokens", 0)
         state.requests += kwargs.get("requests", 0)
-        state.tool_calls += kwargs.get("tool_calls", 0)
         state.gen_secs += kwargs.get("gen_secs", 0.0)
 
     elif event == "warning":

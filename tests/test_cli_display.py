@@ -84,6 +84,18 @@ def test_apply_item_usage_accumulates():
     assert s.output_tokens == 80
     assert s.cache_tokens == 30
     assert s.requests == 5
+    # tool_calls is now counted from item_stage events, not item_usage
+
+
+def test_tool_calls_counted_from_item_stage():
+    from schnapplist.cli.display import apply_event
+    s = _make_state()
+    apply_event(s, "group_done", count=1)
+    apply_event(s, "item_start", idx=1, total=1)
+    apply_event(s, "item_stage", idx=1, stage="analyze_photos")
+    apply_event(s, "item_stage", idx=1, stage="web_search")
+    apply_event(s, "item_stage", idx=1, stage="web_search")
+    apply_event(s, "item_stage", idx=1, stage="enhance")  # not a tool stage
     assert s.tool_calls == 3
 
 
