@@ -111,6 +111,8 @@ def apply_event(state: RunState, event: str, **kwargs: Any) -> None:
         idx = kwargs.get("idx")
         if idx is not None and idx in state.items:
             state.items[idx].status = "skipped"
+            if state.active_idx == idx:
+                state.active_idx = None
 
 
 # ---------------------------------------------------------------------------
