@@ -187,22 +187,28 @@ def run_item_research_agent(
     photos: list[Path],
     client: LLMClient,
     on_stage: Callable[[str], None] | None = None,
-    on_usage: Callable[[RunUsage], None] | None = None,
+    on_usage: Callable[[RunUsage, float], None] | None = None,
 ) -> AgentResult:
     """Run the ReAct agent and return verified item research output with usage stats."""
     agent = _build_agent(on_stage=on_stage)
     deps = _AgentDeps(photos=photos, client=client)
 
     async def _run() -> AgentResult:
-        from pydantic_ai._agent_graph import CallToolsNode  # noqa: PLC0415
+        from pydantic_ai._agent_graph import CallToolsNode, ModelRequestNode  # noqa: PLC0415
+        request_start: float | None = None
         async with agent.iter(
             "Research this item and produce a verified listing.",
             deps=deps,
             usage_limits=UsageLimits(request_limit=_MAX_AGENT_ITERATIONS),
         ) as run:
             async for node in run:
-                if isinstance(node, CallToolsNode) and on_usage is not None:
-                    on_usage(run.usage())
+                if isinstance(node, ModelRequestNode):
+                    request_start = asyncio.get_event_loop().time()
+                elif isinstance(node, CallToolsNode):
+                    gen_secs = (asyncio.get_event_loop().time() - request_start) if request_start is not None else 0.0
+                    request_start = None
+                    if on_usage is not None:
+                        on_usage(run.usage(), gen_secs)
         return AgentResult(output=run.result.output, usage=run.result.usage())
 
     return asyncio.run(_run())

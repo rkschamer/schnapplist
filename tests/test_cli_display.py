@@ -133,22 +133,22 @@ def test_render_llm_returns_renderable():
         console.print(renderable)
 
 
-def test_toks_uses_first_output_time():
-    """tok/s denominator is time since first output token, not total elapsed."""
-    import time
+def test_toks_uses_gen_secs():
+    """tok/s uses accumulated generation time, not wall-clock elapsed."""
     from schnapplist.cli.display import _render_llm, apply_event
     from rich.console import Console
 
     s = _make_state()
-    # Manually set first_output_time to simulate generation starting mid-run
+    # Simulate a usage event with explicit gen_secs
     apply_event(s, "item_usage", idx=1, input_tokens=100, output_tokens=200,
-                cache_read_tokens=0, requests=2, tool_calls=1)
-    # first_output_time should be set now
-    assert s.first_output_time is not None
+                cache_read_tokens=0, requests=2, tool_calls=1, gen_secs=5.0)
+    assert s.gen_secs == 5.0
 
-    # The render should not raise and should produce tok/s line
     renderable = _render_llm(s)
     console = Console(force_terminal=True, width=40)
     with console.capture() as cap:
         console.print(renderable)
-    assert "tok/s" in cap.get()
+    output = cap.get()
+    assert "tok/s" in output
+    # 200 tokens / 5.0s = 40.0 tok/s
+    assert "40.0" in output

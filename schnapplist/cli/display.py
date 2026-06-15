@@ -55,7 +55,7 @@ class RunState:
     cache_tokens: int = 0
     requests: int = 0
     tool_calls: int = 0
-    first_output_time: float | None = None
+    gen_secs: float = 0.0
     tool_log: list[ToolLogEntry] = field(default_factory=list)
 
 
@@ -104,8 +104,7 @@ def apply_event(state: RunState, event: str, **kwargs: Any) -> None:
         state.cache_tokens += kwargs.get("cache_read_tokens", 0)
         state.requests += kwargs.get("requests", 0)
         state.tool_calls += kwargs.get("tool_calls", 0)
-        if out > 0 and state.first_output_time is None:
-            state.first_output_time = time.monotonic()
+        state.gen_secs += kwargs.get("gen_secs", 0.0)
 
     elif event == "warning":
         idx = kwargs.get("idx")
@@ -210,11 +209,9 @@ def _render_llm(state: RunState) -> Panel:
     lines.append(f"↓ out   [bold]{state.output_tokens:,}[/bold] tokens")
     lines.append(f"◈ cache [bold]{state.cache_tokens:,}[/bold] tokens")
 
-    if state.output_tokens > 0 and state.first_output_time is not None:
-        gen_elapsed = time.monotonic() - state.first_output_time
-        if gen_elapsed > 0:
-            tps = state.output_tokens / gen_elapsed
-            lines.append(f"⚡ [bold]{tps:.1f}[/bold] tok/s")
+    if state.output_tokens > 0 and state.gen_secs > 0:
+        tps = state.output_tokens / state.gen_secs
+        lines.append(f"⚡ [bold]{tps:.1f}[/bold] tok/s")
 
     if state.tool_log:
         lines.append("")

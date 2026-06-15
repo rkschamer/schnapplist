@@ -141,8 +141,8 @@ def test_pipeline_emits_item_usage(tmp_path):
     def fake_agent(photos, client, on_stage=None, on_usage=None):
         # Simulate two mid-run usage callbacks (cumulative) then return
         if on_usage is not None:
-            on_usage(RunUsage(input_tokens=50, output_tokens=25, cache_read_tokens=10, requests=1, tool_calls=1))
-            on_usage(RunUsage(input_tokens=100, output_tokens=50, cache_read_tokens=20, requests=3, tool_calls=2))
+            on_usage(RunUsage(input_tokens=50, output_tokens=25, cache_read_tokens=10, requests=1, tool_calls=1), 0.7)
+            on_usage(RunUsage(input_tokens=100, output_tokens=50, cache_read_tokens=20, requests=3, tool_calls=2), 0.8)
         return agent_result
 
     with (
