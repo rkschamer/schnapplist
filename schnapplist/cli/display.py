@@ -203,7 +203,7 @@ def _render_llm(state: RunState) -> Panel:
         lines.append(f"Stage: [cyan]{stage}[/cyan]")
         lines.append("")
 
-    lines.append(f"Requests:   [bold]{state.requests}[/bold] / 10")
+    lines.append(f"Requests:   [bold]{state.requests}[/bold]")
     lines.append(f"Tool calls: [bold]{state.tool_calls}[/bold]")
     lines.append("")
     lines.append(f"↑ in    [bold]{state.input_tokens:,}[/bold] tokens")
