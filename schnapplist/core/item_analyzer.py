@@ -176,6 +176,7 @@ def build_item(analysis: JsonDict, photos: list[Path], enhanced_paths: list[Path
             listing_type=listing_type,
             duration_days=duration,
             reserve_price=reserve,
+            ebay_category_id=analysis.get("ebay_category_id"),
         )
     else:  # kleinanzeigen
         try:

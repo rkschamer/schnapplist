@@ -48,6 +48,7 @@ class ItemResearchOutput(BaseModel):
     specs: dict[str, str]
     keywords: list[str]
     category: str
+    ebay_category_id: str | None = None
     price_info: PriceInfo
     ka_options: KleinanzeigenListingOptions | None
     ebay_options: EbayListingOptions | None
@@ -139,6 +140,9 @@ Rules:
 - title_de must be max 60 characters.
 - description_de should be 80-150 words, written for a private German seller.
 - Suggest a fair price based on condition and current market data.
+- For ebay_category_id: provide the numeric eBay Germany category ID that best fits \
+the item (e.g. "293" for Bücher, "9355" for Kleidung, "58058" for Kopfhörer). \
+If unsure, set to null.
 """
 
 

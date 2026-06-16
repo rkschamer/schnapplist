@@ -274,6 +274,7 @@ class ProcessWorkflow:
                 _analysis_dict["ebay_listing_type"] = o2.listing_type.value
                 _analysis_dict["ebay_duration_days"] = o2.duration_days
                 _analysis_dict["ebay_reserve_price"] = o2.reserve_price
+            _analysis_dict["ebay_category_id"] = agent_output.ebay_category_id
 
             item = build_item(_analysis_dict, filtered, enhanced)
             item.price_info = agent_output.price_info
