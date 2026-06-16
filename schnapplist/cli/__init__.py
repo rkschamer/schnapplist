@@ -117,6 +117,27 @@ def process(
     if click.confirm("\nReview and edit the report now?", default=True):
         _run_review(report_path)
 
+    # After review: offer eBay CSV export if any item targets eBay
+    from ..core.report_parser import parse_report
+    from ..core.ebay_csv_exporter import export_to_csv
+
+    parsed = parse_report(report_path)
+    ebay_items = [d for d in parsed if d.get("marketplace") == "ebay"]
+
+    if ebay_items:
+        if click.confirm(
+            f"\n{len(ebay_items)} eBay item(s) found. Generate CSV draft for approved ones?",
+            default=True,
+        ):
+            from ..services.posting_service import load_items_from_report
+            _, items = load_items_from_report(output_dir)
+            csv_path = report_path / "ebay-export.csv"
+            count = export_to_csv(items, csv_path)
+            console.print(
+                f"\n[bold green]eBay CSV written:[/bold green] {csv_path}  "
+                f"([bold]{count}[/bold] approved item(s))"
+            )
+
     console.print(
         "\nWhen ready, run [bold]schnapplist post[/bold] to create listings."
     )
