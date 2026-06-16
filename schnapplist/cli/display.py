@@ -264,7 +264,7 @@ class RichLiveCallback:
         self._live = Live(
             self._layout,
             console=console,
-            refresh_per_second=4,
+            auto_refresh=False,
             transient=False,
         )
 
