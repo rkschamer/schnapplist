@@ -183,6 +183,8 @@ def _merge_groups_across_batches(
 
     merged: dict[int, list[Path]] = {}
     for original_idx, canonical_idx in enumerate(mapping):
+        if original_idx >= len(groups):
+            continue
         merged.setdefault(canonical_idx, []).extend(groups[original_idx])
 
     return list(merged.values())
