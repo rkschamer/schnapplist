@@ -90,7 +90,7 @@ def test_run_item_research_agent_returns_output(tmp_path):
     photo = tmp_path / "item.jpg"
     img.save(photo, "JPEG")
 
-    from tests.test_process_pipeline_agent import _make_mock_output
+    from tests.test_process_service import _make_mock_output
     mock_output = _make_mock_output("Canon EOS 400D")
     mock_client = MagicMock()
 

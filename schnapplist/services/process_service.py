@@ -296,8 +296,6 @@ class ProcessWorkflow:
 
             item = Item.from_analysis(_analysis_dict, filtered, enhanced, marketplace=marketplace)
             item.price_info = agent_output.price_info
-            if marketplace:
-                item.marketplace = marketplace
             items.append(item)
 
             self._emit("item_stage", idx=idx, stage="report")
