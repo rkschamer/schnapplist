@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from schnapplist.cli.display import ItemRow, RunState, ToolLogEntry
+from schnapplist.cli.display import ItemRow, RunState, ToolLogEntry, _render_items
 
 
 def _make_state() -> RunState:
@@ -143,6 +143,40 @@ def test_render_llm_returns_renderable():
     console = Console(force_terminal=True, width=40)
     with console.capture():
         console.print(renderable)
+
+
+def test_item_done_low_confidence_sets_flag():
+    from schnapplist.cli.display import apply_event
+    state = RunState()
+    apply_event(state, "item_start", idx=1, total=1)
+    apply_event(state, "item_done", idx=1, name="Toshiba SRAM", price="6.00 EUR",
+                confidence=0.55, low_confidence=True)
+    assert state.items[1].low_confidence is True
+    assert state.items[1].confidence == 0.55
+
+
+def test_item_done_high_confidence_no_flag():
+    from schnapplist.cli.display import apply_event
+    state = RunState()
+    apply_event(state, "item_start", idx=1, total=1)
+    apply_event(state, "item_done", idx=1, name="Sony WH-1000XM5", price="180.00 EUR",
+                confidence=0.9, low_confidence=False)
+    assert state.items[1].low_confidence is False
+
+
+def test_render_items_low_confidence_shows_warning_icon():
+    from schnapplist.cli.display import apply_event
+    from rich.console import Console
+    state = RunState()
+    apply_event(state, "item_start", idx=1, total=1)
+    apply_event(state, "item_done", idx=1, name="Toshiba SRAM", price="6.00 EUR",
+                confidence=0.55, low_confidence=True)
+    panel = _render_items(state)
+    console = Console(force_terminal=True, width=80)
+    with console.capture() as cap:
+        console.print(panel)
+    rendered = cap.get()
+    assert "⚠" in rendered or "0.55" in rendered
 
 
 def test_toks_uses_gen_secs():

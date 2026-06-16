@@ -40,6 +40,8 @@ class ItemRow:
     stage: str = ""
     name: str = ""
     price: str = ""
+    confidence: float = 1.0
+    low_confidence: bool = False
 
 
 @dataclass
@@ -97,6 +99,8 @@ def apply_event(state: RunState, event: str, **kwargs: Any) -> None:
             state.items[idx].status = "done"
             state.items[idx].name = kwargs["name"]
             state.items[idx].price = kwargs["price"]
+            state.items[idx].confidence = kwargs.get("confidence", 1.0)
+            state.items[idx].low_confidence = kwargs.get("low_confidence", False)
             state.completed_items += 1
             if state.active_idx == idx:
                 state.active_idx = None
@@ -170,9 +174,14 @@ def _render_items(state: RunState) -> Panel:
         label = f"{row.idx}/{row.total}"
 
         if row.status == "done":
-            icon = "[green]✓[/green]"
-            name_cell = Text(row.name, style="bold")
-            price_cell = Text(row.price, style="green")
+            if row.low_confidence:
+                icon = "[yellow]⚠[/yellow]"
+                name_cell = Text(row.name, style="bold")
+                price_cell = Text(f"{row.price}  [dim](conf: {row.confidence:.2f})[/dim]", style="yellow")
+            else:
+                icon = "[green]✓[/green]"
+                name_cell = Text(row.name, style="bold")
+                price_cell = Text(row.price, style="green")
         elif row.status in ("skipped", "failed"):
             icon = "[red]✗[/red]"
             name_cell = Text(row.name or "skipped", style="dim")
