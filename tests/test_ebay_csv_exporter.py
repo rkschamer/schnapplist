@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv as _csv
 from pathlib import Path
 
 from schnapplist.core.ebay_csv_exporter import export_to_csv
@@ -11,6 +12,10 @@ from schnapplist.core.models import (
     Photo,
     PriceInfo,
 )
+
+
+def _parse_row(line: str) -> list[str]:
+    return next(_csv.reader([line], delimiter=";"))
 
 
 def _make_ebay_item(
@@ -108,7 +113,7 @@ def test_export_data_row_columns(tmp_path: Path):
     out = tmp_path / "export.csv"
     export_to_csv([item], out)
     lines = out.read_text(encoding="utf-8").splitlines()
-    row = lines[5].split(";")  # index 5 = first data row (0-based)
+    row = _parse_row(lines[5])  # index 5 = first data row (0-based)
     assert row[0] == "Draft"
     assert row[1] == "abc12345"   # Custom label = item.id
     assert row[2] == "12345"      # Category ID
@@ -127,7 +132,7 @@ def test_export_auction_format(tmp_path: Path):
     out = tmp_path / "export.csv"
     export_to_csv([item], out)
     lines = out.read_text(encoding="utf-8").splitlines()
-    row = lines[5].split(";")
+    row = _parse_row(lines[5])
     assert row[10] == "Chinese"
 
 
@@ -153,5 +158,5 @@ def test_export_category_id_none_writes_empty_column(tmp_path: Path):
     out = tmp_path / "export.csv"
     export_to_csv([item], out)
     lines = out.read_text(encoding="utf-8").splitlines()
-    row = lines[5].split(";")
+    row = _parse_row(lines[5])
     assert row[2] == ""  # Category ID column is empty when None
