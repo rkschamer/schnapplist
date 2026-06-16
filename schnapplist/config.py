@@ -81,4 +81,4 @@ DEFAULT_MARKETPLACE: str = _listing.get("default_marketplace", "kleinanzeigen")
 EBAY_CSV_ACTION_HEADER: str = _ebay.get(
     "csv_action_header",
     "Action(SiteID=Germany|Country=DE|Currency=EUR|Version=1193|CC=UTF-8)",
-)
+).strip()
