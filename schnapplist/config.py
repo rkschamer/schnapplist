@@ -36,6 +36,7 @@ def _load_toml() -> dict[str, Any]:
 _toml = _load_toml()
 _listing = _toml.get("listing", {})
 _llm = _toml.get("llm", {})
+_ebay = _toml.get("ebay", {})
 
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -71,3 +72,13 @@ LISTING_DISCLAIMER: str = _listing.get("disclaimer", "").strip()
 
 # Default marketplace when the LLM does not suggest one.
 DEFAULT_MARKETPLACE: str = _listing.get("default_marketplace", "kleinanzeigen")
+
+# ---------------------------------------------------------------------------
+# eBay settings (from schnapplist.toml)
+# ---------------------------------------------------------------------------
+
+# Header string written into the generated eBay draft CSV.
+EBAY_CSV_ACTION_HEADER: str = _ebay.get(
+    "csv_action_header",
+    "Action(SiteID=Germany|Country=DE|Currency=EUR|Version=1193|CC=UTF-8)",
+)

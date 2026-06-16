@@ -29,3 +29,9 @@ Der Artikel wird unter Ausschluss jeglicher Gewährleistung verkauft.
 # Default marketplace when the LLM does not suggest one.
 # Allowed values: "kleinanzeigen" | "ebay"
 default_marketplace = "kleinanzeigen"
+
+
+[ebay]
+# Header string written into the generated eBay draft CSV.
+# Change SiteID/Country/Currency for non-DE eBay sites.
+csv_action_header = "Action(SiteID=Germany|Country=DE|Currency=EUR|Version=1193|CC=UTF-8)"
