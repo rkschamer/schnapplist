@@ -420,10 +420,13 @@ def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> 
 
     csv_path = Path(output) if output else report_path / "ebay-export.csv"
     count = export_to_csv(items, csv_path)
-    console.print(
-        f"[bold green]eBay CSV written:[/bold green] {csv_path}  "
-        f"([bold]{count}[/bold] approved item(s))"
-    )
+    if count == 0:
+        console.print("[yellow]No approved eBay items found — nothing to export.[/yellow]")
+    else:
+        console.print(
+            f"[bold green]eBay CSV written:[/bold green] {csv_path}  "
+            f"([bold]{count}[/bold] approved item(s))"
+        )
 
 
 # ---------------------------------------------------------------------------
