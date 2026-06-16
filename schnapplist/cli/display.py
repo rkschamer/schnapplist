@@ -348,6 +348,42 @@ class RichDecisionCallback:
         return "skip"
 
 
+class RichExportCallback:
+    """Prompts the user to generate the eBay CSV export after reviewing."""
+
+    def __init__(self, progress_cb: RichLiveCallback) -> None:
+        self._progress_cb = progress_cb
+
+    def ask(self, ebay_item_count: int) -> bool:
+        """Show a modal asking whether to generate the eBay CSV.
+
+        Returns True if the user pressed 'y', False otherwise.
+        """
+        modal = Panel(
+            Text.assemble(
+                (f"{ebay_item_count} eBay item(s) found.\n", ""),
+                ("Generate CSV for all approved ones?\n\n", ""),
+                ("  ", ""),
+                ("[ y ]", "bold black on green"),
+                ("  generate CSV      ", ""),
+                ("[ n ]", "bold black on white"),
+                ("  skip", ""),
+                "\n\n",
+                ("  press a key…", "dim italic"),
+            ),
+            title=Text("eBay CSV Export", style="bold green"),
+            border_style="green",
+            width=60,
+            padding=(1, 2),
+        )
+        self._progress_cb.show_modal(modal)
+        try:
+            choice = _read_single_key({"y", "n"}, default="n")
+        finally:
+            self._progress_cb.restore_body()
+        return choice == "y"
+
+
 def _read_single_key(allowed: set[str], default: str) -> str:
     """Read a single keypress from stdin in raw mode without echoing.
 
