@@ -123,17 +123,18 @@ def _analyze_photos_impl(photos: list[Path], client: LLMClient) -> JsonDict:
 # Agent
 # ---------------------------------------------------------------------------
 
-_MAX_AGENT_ITERATIONS = 10
-
-_AGENT_SYSTEM_PROMPT = """\
+def _build_system_prompt(target_confidence: float) -> str:
+    return f"""\
 You are an expert reseller assistant for German marketplaces (Kleinanzeigen, eBay.de).
 
 Your job:
 1. Call analyze_photos to identify the item (name, brand, model, condition).
 2. Call web_search to look up the exact manufacturer specifications for the identified model.
 3. Call web_search to find current prices on kleinanzeigen.de and ebay.de.
-4. If any spec or price is unclear, call web_search again with a refined query.
-5. When you have enough verified information, produce your final structured output.
+4. After each web_search, ask yourself: do I have brand, model, at least one verified \
+spec, and a price signal? If yes and your confidence would be >= {target_confidence:.2f}, \
+call finish immediately — do not search further.
+5. If any spec or price is still unclear, call web_search again with a refined query.
 
 Rules:
 - NEVER invent specifications. Only include specs confirmed by web search results.
@@ -145,6 +146,14 @@ Rules:
 - For ebay_category_id: provide the numeric eBay Germany category ID that best fits \
 the item (e.g. "293" for Bücher, "9355" for Kleidung, "58058" for Kopfhörer). \
 If unsure, set to null.
+
+Confidence rating — set when producing your final output:
+- 1.0: brand, model, full spec sheet, and multiple price sources confirmed
+- 0.8: brand + model confirmed, key specs verified, one price source
+- 0.6: brand or model uncertain, specs partially verified
+- 0.4: identification is a best guess, little verification possible
+Set confidence_notes to one sentence describing what was uncertain \
+(or "Fully verified" if confidence = 1.0).
 """
 
 
@@ -156,13 +165,16 @@ class _AgentDeps:
         self.client = client
 
 
-def _build_agent(on_stage: Callable[[str], None] | None = None) -> Agent[_AgentDeps, ItemResearchOutput]:
+def _build_agent(
+    on_stage: Callable[[str], None] | None = None,
+    target_confidence: float = 0.8,
+) -> Agent[_AgentDeps, ItemResearchOutput]:
     model_name = _resolve_model_name()
     agent: Agent[_AgentDeps, ItemResearchOutput] = Agent(
         model_name,
         output_type=ItemResearchOutput,
         deps_type=_AgentDeps,
-        system_prompt=_AGENT_SYSTEM_PROMPT,
+        system_prompt=_build_system_prompt(target_confidence),
         retries=2,
     )
 
@@ -194,9 +206,12 @@ def run_item_research_agent(
     client: LLMClient,
     on_stage: Callable[[str], None] | None = None,
     on_usage: Callable[[RunUsage, float], None] | None = None,
+    *,
+    max_iterations: int = 10,
+    target_confidence: float = 0.8,
 ) -> AgentResult:
     """Run the ReAct agent and return verified item research output with usage stats."""
-    agent = _build_agent(on_stage=on_stage)
+    agent = _build_agent(on_stage=on_stage, target_confidence=target_confidence)
     deps = _AgentDeps(photos=photos, client=client)
 
     async def _run() -> AgentResult:
@@ -205,7 +220,7 @@ def run_item_research_agent(
         async with agent.iter(
             "Research this item and produce a verified listing.",
             deps=deps,
-            usage_limits=UsageLimits(request_limit=_MAX_AGENT_ITERATIONS),
+            usage_limits=UsageLimits(request_limit=max_iterations),
         ) as run:
             async for node in run:
                 if isinstance(node, ModelRequestNode):
