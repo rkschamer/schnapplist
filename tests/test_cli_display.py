@@ -176,7 +176,8 @@ def test_render_items_low_confidence_shows_warning_icon():
     with console.capture() as cap:
         console.print(panel)
     rendered = cap.get()
-    assert "⚠" in rendered or "0.55" in rendered
+    assert "⚠" in rendered
+    assert "0.55" in rendered
 
 
 def test_toks_uses_gen_secs():

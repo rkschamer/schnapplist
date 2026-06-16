@@ -177,7 +177,7 @@ def _render_items(state: RunState) -> Panel:
             if row.low_confidence:
                 icon = "[yellow]⚠[/yellow]"
                 name_cell = Text(row.name, style="bold")
-                price_cell = Text(f"{row.price}  [dim](conf: {row.confidence:.2f})[/dim]", style="yellow")
+                price_cell = Text.from_markup(f"[yellow]{row.price}  [dim](conf: {row.confidence:.2f})[/dim]")
             else:
                 icon = "[green]✓[/green]"
                 name_cell = Text(row.name, style="bold")
