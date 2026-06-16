@@ -1,4 +1,4 @@
-"""Shared DuckDuckGo search helper used by price_researcher and item identification."""
+"""DuckDuckGo search helper used by the item research agent."""
 
 from __future__ import annotations
 

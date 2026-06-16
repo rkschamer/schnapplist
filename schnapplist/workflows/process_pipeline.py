@@ -12,7 +12,6 @@ from typing import Any, Protocol, TypeVar
 
 from pydantic_ai.usage import RunUsage
 
-from ..core.item_analyzer import build_item
 from ..core.llm import LLMClient
 from ..core.models import Item
 from ..core.photo_processor import (
@@ -282,7 +281,7 @@ class ProcessWorkflow:
                 _analysis_dict["ebay_reserve_price"] = o2.reserve_price
                 _analysis_dict["ebay_category_id"] = agent_output.ebay_category_id
 
-            item = build_item(_analysis_dict, filtered, enhanced)
+            item = Item.from_analysis(_analysis_dict, filtered, enhanced, marketplace=marketplace)
             item.price_info = agent_output.price_info
             if marketplace:
                 item.marketplace = marketplace
