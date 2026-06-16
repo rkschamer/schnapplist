@@ -72,11 +72,13 @@ def _write_item_file(item: Item, item_path: Path, run_dir: Path) -> None:
         scheduled = (opts.scheduled_start if (opts and opts.scheduled_start)
                      else _next_evening_start())
         sched_str = scheduled.strftime("%Y-%m-%dT%H:%M:%S")
+        category_id = opts.ebay_category_id if opts else None
         lines += [
             f"| **eBay listing type** | {lt} |",
             f"| **eBay duration (days)** | {dur} |",
             f"| **eBay reserve price (EUR)** | {reserve} |",
             f"| **eBay scheduled start** | {sched_str} |",
+            f"| **eBay Category ID** | {category_id or '—'} |",
         ]
 
     if marketplace == "kleinanzeigen":

@@ -12,6 +12,8 @@ from schnapplist.core.models import (
     Photo,
     PriceInfo,
 )
+from schnapplist.core.report_generator import write_item_report
+from schnapplist.core.report_parser import parse_report
 
 
 def _parse_row(line: str) -> list[str]:
@@ -160,3 +162,18 @@ def test_export_category_id_none_writes_empty_column(tmp_path: Path):
     lines = out.read_text(encoding="utf-8").splitlines()
     row = _parse_row(lines[5])
     assert row[2] == ""  # Category ID column is empty when None
+
+
+def test_report_generator_writes_ebay_category_id(tmp_path: Path):
+    item = _make_ebay_item(category_id="12345", tmp_path=tmp_path)
+    write_item_report(item, index=1, run_dir=tmp_path)
+    text = (tmp_path / "item-1.md").read_text(encoding="utf-8")
+    assert "eBay Category ID" in text
+    assert "12345" in text
+
+
+def test_report_parser_reads_ebay_category_id(tmp_path: Path):
+    item = _make_ebay_item(category_id="12345", tmp_path=tmp_path)
+    write_item_report(item, index=1, run_dir=tmp_path)
+    parsed = parse_report(tmp_path / "item-1.md")
+    assert parsed[0]["ebay_options"]["ebay_category_id"] == "12345"

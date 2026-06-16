@@ -206,6 +206,10 @@ def _parse_ebay_options(table: dict[str, str]) -> dict[str, Any]:
         with contextlib.suppress(ValueError):
             ebay["scheduled_start"] = datetime.fromisoformat(sched_raw)
 
+    cat_id = table.get("eBay Category ID", "").strip()
+    if cat_id and cat_id != "—":
+        ebay["ebay_category_id"] = cat_id
+
     return ebay
 
 
