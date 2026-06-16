@@ -11,7 +11,7 @@ def _make_mock_client():
     return MagicMock()
 
 
-def _make_mock_output(name: str = "Test Item"):
+def _make_mock_output(name: str = "Test Item", confidence: float = 0.9):
     from schnapplist.core.models import (
         ItemCondition, KleinanzeigenListingOptions, PriceInfo,
         KaShipping, KaPriceType,
@@ -35,6 +35,8 @@ def _make_mock_output(name: str = "Test Item"):
             shipping=KaShipping.VERSAND, price_type=KaPriceType.FESTPREIS
         ),
         ebay_options=None,
+        confidence=confidence,
+        confidence_notes="Fully verified" if confidence >= 0.8 else "Model uncertain",
     )
 
 
@@ -138,7 +140,7 @@ def test_pipeline_emits_item_usage(tmp_path):
     events = []
     progress_cb = lambda event, **kwargs: events.append((event, kwargs))
 
-    def fake_agent(photos, client, on_stage=None, on_usage=None):
+    def fake_agent(photos, client, on_stage=None, on_usage=None, **kwargs):
         # Simulate two mid-run usage callbacks (cumulative) then return
         if on_usage is not None:
             on_usage(RunUsage(input_tokens=50, output_tokens=25, cache_read_tokens=10, requests=1, tool_calls=1), 0.7)
@@ -198,3 +200,68 @@ def test_pipeline_passes_on_stage_to_agent(tmp_path):
 
     assert "on_stage" in captured_kwargs
     assert callable(captured_kwargs["on_stage"])
+
+
+def test_pipeline_item_done_includes_low_confidence_false(tmp_path):
+    from PIL import Image
+    photos_dir = tmp_path / "photos"
+    photos_dir.mkdir()
+    img = Image.new("RGB", (10, 10))
+    img.save(photos_dir / "item.jpg", "JPEG")
+
+    mock_output = _make_mock_output("Test Item")  # confidence=0.9 by default
+
+    events = []
+
+    def _cb(event: str, **kwargs):
+        events.append((event, kwargs))
+
+    with (
+        patch("schnapplist.workflows.process_pipeline.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
+        patch("schnapplist.workflows.process_pipeline.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
+        patch("schnapplist.workflows.process_pipeline.enhance_photo", return_value=photos_dir / "item.jpg"),
+        patch("schnapplist.workflows.process_pipeline.run_item_research_agent", return_value=MagicMock(output=mock_output, usage=MagicMock())),
+        patch("schnapplist.workflows.process_pipeline.write_item_report"),
+    ):
+        ProcessWorkflow(_make_mock_client(), on_progress=_cb).run(
+            photos_dir=photos_dir,
+            output_dir=tmp_path / "output",
+            single_item=False,
+        )
+
+    done_events = [(e, k) for e, k in events if e == "item_done"]
+    assert len(done_events) == 1
+    assert done_events[0][1]["low_confidence"] is False
+    assert done_events[0][1]["confidence"] == 0.9
+
+
+def test_pipeline_item_done_includes_low_confidence_true(tmp_path):
+    from PIL import Image
+    photos_dir = tmp_path / "photos"
+    photos_dir.mkdir()
+    img = Image.new("RGB", (10, 10))
+    img.save(photos_dir / "item.jpg", "JPEG")
+
+    mock_output = _make_mock_output("Test Item", confidence=0.4)
+
+    events = []
+
+    def _cb(event: str, **kwargs):
+        events.append((event, kwargs))
+
+    with (
+        patch("schnapplist.workflows.process_pipeline.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
+        patch("schnapplist.workflows.process_pipeline.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
+        patch("schnapplist.workflows.process_pipeline.enhance_photo", return_value=photos_dir / "item.jpg"),
+        patch("schnapplist.workflows.process_pipeline.run_item_research_agent", return_value=MagicMock(output=mock_output, usage=MagicMock())),
+        patch("schnapplist.workflows.process_pipeline.write_item_report"),
+    ):
+        ProcessWorkflow(_make_mock_client(), on_progress=_cb).run(
+            photos_dir=photos_dir,
+            output_dir=tmp_path / "output",
+            single_item=False,
+        )
+
+    done_events = [(e, k) for e, k in events if e == "item_done"]
+    assert done_events[0][1]["low_confidence"] is True
+    assert done_events[0][1]["confidence"] == 0.4

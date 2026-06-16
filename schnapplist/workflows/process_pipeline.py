@@ -22,6 +22,7 @@ from ..core.photo_processor import (
     load_photos,
 )
 from ..core.report_generator import write_item_report
+from ..config import AGENT_MAX_ITERATIONS, AGENT_TARGET_CONFIDENCE
 from .item_research_agent import AgentResult, ItemResearchOutput, run_item_research_agent
 
 _T = TypeVar("_T")
@@ -231,9 +232,12 @@ class ProcessWorkflow:
                             self._client,
                             on_stage=lambda stage: self._emit("item_stage", idx=_idx, stage=stage),
                             on_usage=_on_usage,
+                            max_iterations=AGENT_MAX_ITERATIONS,
+                            target_confidence=AGENT_TARGET_CONFIDENCE,
                         ),
                     )
                     agent_output = agent_result.output
+                    low_confidence = agent_output.confidence < AGENT_TARGET_CONFIDENCE
                     item_state.item_name = agent_output.name
                     item_state.condition = agent_output.condition.value
                 except Exception as exc:
@@ -290,7 +294,14 @@ class ProcessWorkflow:
                 if agent_output.price_info
                 else "—"
             )
-            self._emit("item_done", idx=idx, name=item_state.item_name, price=price_str)
+            self._emit(
+                "item_done",
+                idx=idx,
+                name=item_state.item_name,
+                price=price_str,
+                confidence=agent_output.confidence,
+                low_confidence=low_confidence,
+            )
 
         self._emit("report_done", path=run_dir)
 
