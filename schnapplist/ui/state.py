@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 from ..core.models import Item
-from ..agents.process_pipeline import ProcessRunResult
+from ..services.process_service import ProcessRunResult
 
 
 @dataclasses.dataclass

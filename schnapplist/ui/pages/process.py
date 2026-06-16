@@ -7,8 +7,7 @@ from typing import Any
 
 from nicegui import ui
 
-from ...services.process_service import run_process
-from ...agents.process_pipeline import ProgressCallback
+from ...services.process_service import ProgressCallback, run_process
 from ..state import ProcessingEvent, SessionState
 
 _STAGE_LABELS: dict[str, str] = {
