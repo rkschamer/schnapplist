@@ -31,6 +31,14 @@ Der Artikel wird unter Ausschluss jeglicher Gewährleistung verkauft.
 default_marketplace = "kleinanzeigen"
 
 
+[agent]
+
+# Confidence threshold (0.0–1.0). Items below this are flagged in the CLI and report.
+target_confidence = 0.8
+# Maximum LLM turns per item (safety cap).
+max_iterations = 10
+
+
 [ebay]
 
 # Header string written into the generated eBay draft CSV.

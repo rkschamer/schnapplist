@@ -37,6 +37,7 @@ _toml = _load_toml()
 _listing = _toml.get("listing", {})
 _llm = _toml.get("llm", {})
 _ebay = _toml.get("ebay", {})
+_agent = _toml.get("agent", {})
 
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -82,3 +83,12 @@ EBAY_CSV_ACTION_HEADER: str = _ebay.get(
     "csv_action_header",
     "Action(SiteID=Germany|Country=DE|Currency=EUR|Version=1193|CC=UTF-8)",
 ).strip()
+
+# ---------------------------------------------------------------------------
+# Agent settings (from schnapplist.toml)
+# ---------------------------------------------------------------------------
+
+# Confidence threshold (0.0–1.0). Items below this are flagged in the CLI and report.
+AGENT_TARGET_CONFIDENCE: float = float(_agent.get("target_confidence", 0.8))
+# Maximum LLM turns per item (safety cap).
+AGENT_MAX_ITERATIONS: int = int(_agent.get("max_iterations", 10))
