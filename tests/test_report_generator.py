@@ -35,3 +35,31 @@ def test_report_no_confidence_row_when_high(tmp_path):
     path = write_item_report(item, 1, tmp_path / "run")
     content = path.read_text()
     assert "Confidence" not in content
+
+
+def test_report_no_confidence_row_at_exact_threshold(tmp_path):
+    """confidence == target is NOT low-confidence (strict <)."""
+    item = _make_item(tmp_path, confidence=AGENT_TARGET_CONFIDENCE)
+    path = write_item_report(item, 1, tmp_path / "run")
+    content = path.read_text()
+    assert "Confidence" not in content
+
+
+def test_report_confidence_row_shown_without_price_info(tmp_path):
+    """Confidence table row appears even when there's no Recherche section."""
+    photo = Photo(original_path=tmp_path / "photo.jpg")
+    item = Item(
+        name="Mystery Item",
+        title_de="Unbekannt",
+        description="Unbekanntes Gerät.",
+        condition=ItemCondition.GOOD,
+        photos=[photo],
+        price_info=None,
+        confidence=0.3,
+        confidence_notes="Could not identify item",
+    )
+    path = write_item_report(item, 1, tmp_path / "run")
+    content = path.read_text()
+    assert "Confidence" in content
+    assert "0.30" in content
+    assert "Could not identify item" in content
