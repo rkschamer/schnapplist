@@ -50,7 +50,7 @@ def _make_ebay_item(
     )
 
 
-def test_export_writes_info_header_lines(tmp_path: Path):
+def test_export_writes_info_header_lines(tmp_path: Path) -> None:
     item = _make_ebay_item(tmp_path=tmp_path)
     out = tmp_path / "export.csv"
     export_to_csv([item], out)
@@ -61,7 +61,7 @@ def test_export_writes_info_header_lines(tmp_path: Path):
     assert lines[3].startswith("#INFO")
 
 
-def test_export_column_header_is_fifth_line(tmp_path: Path):
+def test_export_column_header_is_fifth_line(tmp_path: Path) -> None:
     item = _make_ebay_item(tmp_path=tmp_path)
     out = tmp_path / "export.csv"
     export_to_csv([item], out)
@@ -69,7 +69,7 @@ def test_export_column_header_is_fifth_line(tmp_path: Path):
     assert lines[4].startswith("Action(SiteID=Germany")
 
 
-def test_export_one_row_per_approved_ebay_item(tmp_path: Path):
+def test_export_one_row_per_approved_ebay_item(tmp_path: Path) -> None:
     items = [
         _make_ebay_item(tmp_path=tmp_path),
         _make_ebay_item(tmp_path=tmp_path),
@@ -82,7 +82,7 @@ def test_export_one_row_per_approved_ebay_item(tmp_path: Path):
     assert len(lines) == 7
 
 
-def test_export_skips_unapproved_items(tmp_path: Path):
+def test_export_skips_unapproved_items(tmp_path: Path) -> None:
     items = [
         _make_ebay_item(approved=True, tmp_path=tmp_path),
         _make_ebay_item(approved=False, tmp_path=tmp_path),
@@ -92,7 +92,7 @@ def test_export_skips_unapproved_items(tmp_path: Path):
     assert count == 1
 
 
-def test_export_skips_non_ebay_items(tmp_path: Path):
+def test_export_skips_non_ebay_items(tmp_path: Path) -> None:
     photo = Photo(original_path=tmp_path / "photo.jpg")
     ka_item = Item(
         id="ka000001",
@@ -110,7 +110,7 @@ def test_export_skips_non_ebay_items(tmp_path: Path):
     assert count == 1
 
 
-def test_export_data_row_columns(tmp_path: Path):
+def test_export_data_row_columns(tmp_path: Path) -> None:
     item = _make_ebay_item(tmp_path=tmp_path)
     out = tmp_path / "export.csv"
     export_to_csv([item], out)
@@ -129,7 +129,7 @@ def test_export_data_row_columns(tmp_path: Path):
     assert row[10] == "FixedPrice"
 
 
-def test_export_auction_format(tmp_path: Path):
+def test_export_auction_format(tmp_path: Path) -> None:
     item = _make_ebay_item(listing_type=EbayListingType.AUCTION, tmp_path=tmp_path)
     out = tmp_path / "export.csv"
     export_to_csv([item], out)
@@ -138,7 +138,7 @@ def test_export_auction_format(tmp_path: Path):
     assert row[10] == "Chinese"
 
 
-def test_export_returns_zero_when_nothing_to_export(tmp_path: Path):
+def test_export_returns_zero_when_nothing_to_export(tmp_path: Path) -> None:
     photo = Photo(original_path=tmp_path / "photo.jpg")
     item = Item(
         id="ka000001",
@@ -155,7 +155,7 @@ def test_export_returns_zero_when_nothing_to_export(tmp_path: Path):
     assert count == 0
 
 
-def test_export_category_id_none_writes_empty_column(tmp_path: Path):
+def test_export_category_id_none_writes_empty_column(tmp_path: Path) -> None:
     item = _make_ebay_item(category_id=None, tmp_path=tmp_path)
     out = tmp_path / "export.csv"
     export_to_csv([item], out)
@@ -164,7 +164,7 @@ def test_export_category_id_none_writes_empty_column(tmp_path: Path):
     assert row[2] == ""  # Category ID column is empty when None
 
 
-def test_report_generator_writes_ebay_category_id(tmp_path: Path):
+def test_report_generator_writes_ebay_category_id(tmp_path: Path) -> None:
     item = _make_ebay_item(category_id="12345", tmp_path=tmp_path)
     write_item_report(item, index=1, run_dir=tmp_path)
     text = (tmp_path / "item-1.md").read_text(encoding="utf-8")
@@ -172,7 +172,7 @@ def test_report_generator_writes_ebay_category_id(tmp_path: Path):
     assert "12345" in text
 
 
-def test_report_parser_reads_ebay_category_id(tmp_path: Path):
+def test_report_parser_reads_ebay_category_id(tmp_path: Path) -> None:
     item = _make_ebay_item(category_id="12345", tmp_path=tmp_path)
     write_item_report(item, index=1, run_dir=tmp_path)
     parsed = parse_report(tmp_path / "item-1.md")
