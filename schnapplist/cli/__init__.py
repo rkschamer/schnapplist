@@ -119,7 +119,7 @@ def process(
 
     # After review: offer eBay CSV export if any item targets eBay.
     # Load items once from the known report_path to avoid a second parse / re-scan.
-    from ..core.ebay_csv_exporter import export_to_csv
+    from ..providers.ebay_csv_exporter import export_to_csv
     from ..services.posting_service import items_from_report_path
 
     items = items_from_report_path(report_path)
@@ -403,7 +403,7 @@ def export() -> None:
 )
 def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> None:
     """Generate an eBay draft listing CSV for bulk upload."""
-    from ..core.ebay_csv_exporter import export_to_csv
+    from ..providers.ebay_csv_exporter import export_to_csv
     from ..services.posting_service import items_from_report_path
     from ..workflows.review_pipeline import find_latest_report
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv as _csv
 from pathlib import Path
 
-from schnapplist.core.ebay_csv_exporter import export_to_csv
+from schnapplist.providers.ebay_csv_exporter import export_to_csv
 from schnapplist.core.models import (
     EbayListingOptions,
     EbayListingType,

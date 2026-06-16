@@ -6,7 +6,7 @@ import csv
 import io
 from pathlib import Path
 
-from .models import EbayListingType, Item
+from ..core.models import EbayListingType, Item
 
 _INFO_LINES = [
     "#INFO;Version=0.0.2;Template= eBay-draft-listings-template_DE",
