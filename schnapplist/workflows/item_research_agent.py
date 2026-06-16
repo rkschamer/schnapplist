@@ -52,6 +52,8 @@ class ItemResearchOutput(BaseModel):
     price_info: PriceInfo
     ka_options: KleinanzeigenListingOptions | None
     ebay_options: EbayListingOptions | None
+    confidence: float = 0.5           # 0.0–1.0, agent self-rated
+    confidence_notes: str = ""        # one sentence explaining the rating
 
 
 @dataclass

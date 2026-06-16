@@ -154,3 +154,27 @@ def test_on_stage_fires_when_tools_called(tmp_path):
     assert on_stage.call_count == 2
     on_stage.assert_any_call("analyze_photos")
     on_stage.assert_any_call("web_search")
+
+
+def test_item_research_output_has_confidence_fields():
+    from schnapplist.core.models import ItemCondition, PriceInfo
+
+    output = ItemResearchOutput(
+        name="Test",
+        brand=None,
+        model=None,
+        condition=ItemCondition.GOOD,
+        condition_notes="",
+        title_de="Test",
+        description_de="Test.",
+        specs={},
+        keywords=[],
+        category="Other",
+        price_info=PriceInfo(suggested_price=1.0, min_price=1.0, max_price=1.0, reasoning=""),
+        ka_options=None,
+        ebay_options=None,
+        confidence=0.6,
+        confidence_notes="Model uncertain",
+    )
+    assert output.confidence == 0.6
+    assert output.confidence_notes == "Model uncertain"
