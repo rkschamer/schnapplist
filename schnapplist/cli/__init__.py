@@ -164,7 +164,7 @@ def process(
 )
 def review(output_dir: Path, report: Path | None) -> None:
     """Open the Markdown report in $EDITOR."""
-    from ..workflows.review_pipeline import find_latest_report
+    from ..services.item_service import find_latest_report
 
     report_path = Path(report) if report else find_latest_report(output_dir)
     if report_path is None:
@@ -405,7 +405,7 @@ def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> 
     """Generate an eBay draft listing CSV for bulk upload."""
     from ..providers.ebay_csv_exporter import export_to_csv
     from ..services.posting_service import items_from_report_path
-    from ..workflows.review_pipeline import find_latest_report
+    from ..services.item_service import find_latest_report
 
     report_path = Path(run_dir) if run_dir else find_latest_report(output_dir)
 

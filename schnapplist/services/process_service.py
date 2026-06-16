@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..config import CLAUDE_MODEL, LLM_PROVIDER, OLLAMA_HOST, OLLAMA_MODEL
 from ..core.llm import LLMClient
-from ..workflows.process_pipeline import (
+from ..agents.process_pipeline import (
     DecisionCallback,
     ProcessRunResult,
     ProcessWorkflow,

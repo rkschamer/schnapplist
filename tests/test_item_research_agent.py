@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from PIL import Image
 
 from schnapplist.core.models import ItemCondition, KleinanzeigenListingOptions, PriceInfo
-from schnapplist.workflows.item_research_agent import ItemResearchOutput, _analyze_photos_impl, run_item_research_agent
+from schnapplist.agents.item_research_agent import ItemResearchOutput, _analyze_photos_impl, run_item_research_agent
 
 
 def test_item_research_output_round_trips():
@@ -94,7 +94,7 @@ def test_run_item_research_agent_returns_output(tmp_path):
     mock_output = _make_mock_output("Canon EOS 400D")
     mock_client = MagicMock()
 
-    with patch("schnapplist.workflows.item_research_agent._build_agent") as mock_build:
+    with patch("schnapplist.agents.item_research_agent._build_agent") as mock_build:
         from contextlib import asynccontextmanager
 
         @asynccontextmanager
@@ -126,7 +126,7 @@ def test_run_item_research_agent_returns_output(tmp_path):
 
 def test_on_stage_fires_when_tools_called(tmp_path):
     """on_stage is called with the correct tool name when each tool executes."""
-    from schnapplist.workflows.item_research_agent import _build_agent, _AgentDeps
+    from schnapplist.agents.item_research_agent import _build_agent, _AgentDeps
 
     on_stage = MagicMock()
     mock_client = MagicMock()
@@ -134,7 +134,7 @@ def test_on_stage_fires_when_tools_called(tmp_path):
     img_path = tmp_path / "item.jpg"
     Image.new("RGB", (10, 10)).save(img_path, "JPEG")
 
-    with patch("schnapplist.workflows.item_research_agent._resolve_model_name", return_value="test"):
+    with patch("schnapplist.agents.item_research_agent._resolve_model_name", return_value="test"):
         agent = _build_agent(on_stage=on_stage)
 
     deps = _AgentDeps(photos=[img_path], client=mock_client)
@@ -145,10 +145,10 @@ def test_on_stage_fires_when_tools_called(tmp_path):
     analyze_fn = agent._function_toolset.tools["analyze_photos"].function
     web_search_fn = agent._function_toolset.tools["web_search"].function
 
-    with patch("schnapplist.workflows.item_research_agent._analyze_photos_impl", return_value={"name": "X"}):
+    with patch("schnapplist.agents.item_research_agent._analyze_photos_impl", return_value={"name": "X"}):
         analyze_fn(ctx)
 
-    with patch("schnapplist.workflows.item_research_agent._ddg_search", return_value=[]):
+    with patch("schnapplist.agents.item_research_agent._ddg_search", return_value=[]):
         web_search_fn(ctx, query="test query", max_results=5)
 
     assert on_stage.call_count == 2
