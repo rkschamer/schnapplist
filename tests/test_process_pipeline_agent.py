@@ -203,7 +203,6 @@ def test_pipeline_passes_on_stage_to_agent(tmp_path):
 
 
 def test_pipeline_item_done_includes_low_confidence_false(tmp_path):
-    from PIL import Image
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
     img = Image.new("RGB", (10, 10))
@@ -236,7 +235,6 @@ def test_pipeline_item_done_includes_low_confidence_false(tmp_path):
 
 
 def test_pipeline_item_done_includes_low_confidence_true(tmp_path):
-    from PIL import Image
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
     img = Image.new("RGB", (10, 10))

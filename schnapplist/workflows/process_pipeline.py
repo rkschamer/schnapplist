@@ -39,7 +39,7 @@ class ProgressCallback(Protocol):
       group_done     count: int
       item_start     idx: int, total: int
       item_stage     idx: int, stage: str
-      item_done      idx: int, name: str, price: str
+      item_done      idx: int, name: str, price: str, confidence: float, low_confidence: bool
       item_usage     idx: int, input_tokens: int, output_tokens: int,
                      cache_read_tokens: int, requests: int, tool_calls: int
       report_done    path: Path
