@@ -85,6 +85,7 @@ class EbayListingOptions(BaseModel):
     reserve_price: float | None = None      # auction only
     duration_days: int = 7                     # 1, 3, 5, 7, or 10
     scheduled_start: datetime | None = None
+    ebay_category_id: str | None = None      # numeric eBay DE category ID
 
 
 class Item(BaseModel):
