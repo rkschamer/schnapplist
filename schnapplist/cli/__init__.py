@@ -371,6 +371,63 @@ def _print_dry_run_summary(summary: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# export
+# ---------------------------------------------------------------------------
+
+@main.group()
+def export() -> None:
+    """Export items to external formats."""
+
+
+@export.command("ebay")
+@click.option(
+    "--output-dir", "-o",
+    default="./output",
+    type=click.Path(path_type=Path),
+    show_default=True,
+    help="Root output directory to search for the latest run.",
+)
+@click.option(
+    "--run-dir",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Explicit run folder (default: most recent in --output-dir).",
+)
+@click.option(
+    "--output",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Output CSV path (default: <run-dir>/ebay-export.csv).",
+)
+def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> None:
+    """Generate an eBay draft listing CSV for bulk upload."""
+    from ..core.ebay_csv_exporter import export_to_csv
+    from ..workflows.review_pipeline import find_latest_report
+
+    report_path = Path(run_dir) if run_dir else find_latest_report(output_dir)
+
+    if report_path is None:
+        console.print("[yellow]No report found. Run 'process' first.[/yellow]")
+        sys.exit(1)
+
+    from ..services.posting_service import load_items_from_report
+
+    load_dir = run_dir.parent if run_dir else output_dir
+    try:
+        _, items = load_items_from_report(load_dir)
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+
+    csv_path = Path(output) if output else report_path / "ebay-export.csv"
+    count = export_to_csv(items, csv_path)
+    console.print(
+        f"[bold green]eBay CSV written:[/bold green] {csv_path}  "
+        f"([bold]{count}[/bold] approved item(s))"
+    )
+
+
+# ---------------------------------------------------------------------------
 # config
 # ---------------------------------------------------------------------------
 
