@@ -213,4 +213,6 @@ def build_item(analysis: JsonDict, photos: list[Path], enhanced_paths: list[Path
         marketplace=marketplace,
         ebay_options=ebay_opts,
         ka_options=ka_opts,
+        confidence=float(analysis.get("confidence", 1.0)),
+        confidence_notes=str(analysis.get("confidence_notes", "")),
     )

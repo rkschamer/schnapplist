@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from ..config import DEFAULT_MARKETPLACE, LISTING_DISCLAIMER
+from ..config import AGENT_TARGET_CONFIDENCE, DEFAULT_MARKETPLACE, LISTING_DISCLAIMER
 from .models import EbayListingType, Item, KleinanzeigenListingOptions
 
 
@@ -63,6 +63,11 @@ def _write_item_file(item: Item, item_path: Path, run_dir: Path) -> None:
         f"| **Marketplace** | {marketplace} |",
         f"| **Approved** | {str(item.approved).lower()} |",
     ]
+
+    if item.confidence < AGENT_TARGET_CONFIDENCE:
+        lines.append(
+            f"| **Confidence** | {item.confidence:.2f} ⚠ — {item.confidence_notes} |"
+        )
 
     if marketplace == "ebay":
         opts = item.ebay_options
@@ -148,6 +153,11 @@ def _write_item_file(item: Item, item_path: Path, run_dir: Path) -> None:
                 else:
                     lines.append(f"- {title}")
             lines.append("")
+        if item.confidence < AGENT_TARGET_CONFIDENCE:
+            lines += [
+                f"**⚠ Niedrige Konfidenz:** {item.confidence_notes}",
+                "",
+            ]
 
     lines += ["---", ""]
 

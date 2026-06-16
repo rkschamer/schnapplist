@@ -266,6 +266,8 @@ class ProcessWorkflow:
                 "description_de": agent_output.description_de,
                 "keywords": agent_output.keywords,
                 "category": agent_output.category,
+                "confidence": agent_output.confidence,
+                "confidence_notes": agent_output.confidence_notes,
             }
             if agent_output.ka_options is not None:
                 o = agent_output.ka_options

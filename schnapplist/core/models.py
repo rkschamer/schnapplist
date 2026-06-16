@@ -104,3 +104,5 @@ class Item(BaseModel):
     marketplace: str | None = None          # "ebay" | "kleinanzeigen"
     ebay_options: EbayListingOptions | None = None
     ka_options: KleinanzeigenListingOptions | None = None
+    confidence: float = 1.0
+    confidence_notes: str = ""
