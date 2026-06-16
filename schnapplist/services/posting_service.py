@@ -33,16 +33,12 @@ class PostResult:
         return self.error is None
 
 
-def load_items_from_report(output_dir: Path) -> tuple[Path, list[Item]]:
-    """Return (report_path, items) for the latest run.
+def items_from_report_path(report_path: Path) -> list[Item]:
+    """Build Item objects from an already-resolved report directory.
 
     Raises:
-        FileNotFoundError: if no report exists in output_dir.
+        FileNotFoundError: if the report directory contains no items.
     """
-    report_path = find_latest_report(output_dir)
-    if not report_path:
-        raise FileNotFoundError(f"No report found in {output_dir}. Run 'process' first.")
-
     parsed = parse_report(report_path)
     if not parsed:
         raise FileNotFoundError("No items found in report.")
@@ -88,7 +84,19 @@ def load_items_from_report(output_dir: Path) -> tuple[Path, list[Item]]:
                 ka_options=ka_options,
             )
         )
-    return report_path, items
+    return items
+
+
+def load_items_from_report(output_dir: Path) -> tuple[Path, list[Item]]:
+    """Return (report_path, items) for the latest run.
+
+    Raises:
+        FileNotFoundError: if no report exists in output_dir.
+    """
+    report_path = find_latest_report(output_dir)
+    if not report_path:
+        raise FileNotFoundError(f"No report found in {output_dir}. Run 'process' first.")
+    return report_path, items_from_report_path(report_path)
 
 
 def post_item(

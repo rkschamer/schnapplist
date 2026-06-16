@@ -6,7 +6,6 @@ import csv
 import io
 from pathlib import Path
 
-from ..config import EBAY_CSV_ACTION_HEADER
 from .models import EbayListingType, Item
 
 _INFO_LINES = [
@@ -21,8 +20,7 @@ _INFO_LINES = [
     "#INFO",
 ]
 
-_COLUMNS = [
-    EBAY_CSV_ACTION_HEADER,
+_COLUMN_SUFFIXES = [
     "Custom label (SKU)",
     "Category ID",
     "Title",
@@ -34,6 +32,11 @@ _COLUMNS = [
     "Description",
     "Format",
 ]
+
+
+def _columns() -> list[str]:
+    from ..config import EBAY_CSV_ACTION_HEADER
+    return [EBAY_CSV_ACTION_HEADER, *_COLUMN_SUFFIXES]
 
 _FORMAT_MAP = {
     EbayListingType.FIXED: "FixedPrice",
@@ -57,7 +60,7 @@ def export_to_csv(items: list[Item], output_path: Path) -> int:
         buf.write(info_line + "\n")
 
     writer = csv.writer(buf, delimiter=";", quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
-    writer.writerow(_COLUMNS)
+    writer.writerow(_columns())
     writer.writerows(rows)
 
     output_path.write_text(buf.getvalue(), encoding="utf-8")

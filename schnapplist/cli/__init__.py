@@ -117,25 +117,28 @@ def process(
     if click.confirm("\nReview and edit the report now?", default=True):
         _run_review(report_path)
 
-    # After review: offer eBay CSV export if any item targets eBay
+    # After review: offer eBay CSV export if any item targets eBay.
+    # Load items once from the known report_path to avoid a second parse / re-scan.
     from ..core.ebay_csv_exporter import export_to_csv
-    from ..core.report_parser import parse_report
+    from ..services.posting_service import items_from_report_path
 
-    parsed = parse_report(report_path)
-    ebay_items = [d for d in parsed if d.get("marketplace") == "ebay"]
+    items = items_from_report_path(report_path)
+    ebay_items = [it for it in items if it.marketplace == "ebay"]
+    approved_ebay = [it for it in ebay_items if it.approved]
 
     if ebay_items and click.confirm(
-        f"\n{len(ebay_items)} eBay item(s) found. Generate CSV draft for approved ones?",
+        f"\n{len(approved_ebay)} approved eBay item(s) ready. Generate CSV draft?",
         default=True,
     ):
-        from ..services.posting_service import load_items_from_report
-        _, items = load_items_from_report(output_dir)
         csv_path = report_path / "ebay-export.csv"
         count = export_to_csv(items, csv_path)
-        console.print(
-            f"\n[bold green]eBay CSV written:[/bold green] {csv_path}  "
-                f"([bold]{count}[/bold] approved item(s))"
-            )
+        if count == 0:
+            console.print("[yellow]No approved eBay items — CSV not written.[/yellow]")
+        else:
+            console.print(
+                f"\n[bold green]eBay CSV written:[/bold green] {csv_path}  "
+                    f"([bold]{count}[/bold] approved item(s))"
+                )
 
     console.print(
         "\nWhen ready, run [bold]schnapplist post[/bold] to create listings."
@@ -401,6 +404,7 @@ def export() -> None:
 def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> None:
     """Generate an eBay draft listing CSV for bulk upload."""
     from ..core.ebay_csv_exporter import export_to_csv
+    from ..services.posting_service import items_from_report_path
     from ..workflows.review_pipeline import find_latest_report
 
     report_path = Path(run_dir) if run_dir else find_latest_report(output_dir)
@@ -409,11 +413,8 @@ def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> 
         console.print("[yellow]No report found. Run 'process' first.[/yellow]")
         sys.exit(1)
 
-    from ..services.posting_service import load_items_from_report
-
-    load_dir = run_dir.parent if run_dir else output_dir
     try:
-        _, items = load_items_from_report(load_dir)
+        items = items_from_report_path(report_path)
     except FileNotFoundError as exc:
         console.print(f"[red]{exc}[/red]")
         sys.exit(1)
