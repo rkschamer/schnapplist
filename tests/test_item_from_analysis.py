@@ -10,7 +10,6 @@ from schnapplist.core.models import (
     ItemCondition,
     KaPriceType,
     KaShipping,
-    PriceInfo,
 )
 
 
@@ -58,6 +57,7 @@ def test_from_analysis_photos_wired(tmp_path: Path) -> None:
 
 def test_from_analysis_ka_options(tmp_path: Path) -> None:
     item = Item.from_analysis(_analysis(), [tmp_path / "a.jpg"], [tmp_path / "b.jpg"])
+    assert item.marketplace == "kleinanzeigen"
     assert item.ka_options is not None
     assert item.ka_options.shipping == KaShipping.VERSAND
     assert item.ka_options.price_type == KaPriceType.FESTPREIS
@@ -74,6 +74,7 @@ def test_from_analysis_ebay_options(tmp_path: Path) -> None:
     for k in ("ka_category", "ka_shipping", "ka_shipping_methods", "ka_price_type"):
         analysis.pop(k, None)
     item = Item.from_analysis(analysis, [tmp_path / "a.jpg"], [], marketplace="ebay")
+    assert item.marketplace == "ebay"
     assert item.ebay_options is not None
     assert item.ebay_options.listing_type == EbayListingType.AUCTION
     assert item.ebay_options.reserve_price == 30.0
@@ -95,3 +96,12 @@ def test_from_analysis_invalid_shipping_falls_back(tmp_path: Path) -> None:
     )
     assert item.ka_options is not None
     assert item.ka_options.shipping == KaShipping.VERSAND
+
+
+def test_from_analysis_description_fallback(tmp_path: Path) -> None:
+    analysis = _analysis()
+    del analysis["description_de"]
+    analysis["description"] = "Fallback description."
+    item = Item.from_analysis(analysis, [tmp_path / "a.jpg"], [])
+    assert item.description == "Fallback description."
+
