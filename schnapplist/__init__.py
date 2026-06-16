@@ -1,1 +1,1 @@
-"""Auction Buddy — AI-powered auction listing creator."""
+"""Schnapplist — AI-powered listing creator for eBay and Kleinanzeigen."""

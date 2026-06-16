@@ -19,8 +19,8 @@ dependencies = [
 ]
 
 [project.scripts]
-schnapplist = "schnapplist.cli:main"
-schnapplist-ui = "schnapplist.ui.main:run"
+schnapplist = "schnapplist.ui.cli:main"
+schnapplist-ui = "schnapplist.ui.web.main:run"
 
 [dependency-groups]
 dev = [

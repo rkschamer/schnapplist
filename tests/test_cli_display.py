@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from schnapplist.cli.display import ItemRow, RunState, ToolLogEntry, _render_items
+from schnapplist.ui.cli.display import ItemRow, RunState, ToolLogEntry, _render_items
 
 
 def _make_state() -> RunState:
@@ -16,7 +16,7 @@ def test_runstate_defaults():
 
 
 def test_apply_scan_done():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "scan_done", count=7)
     assert s.photo_count == 7
@@ -24,7 +24,7 @@ def test_apply_scan_done():
 
 
 def test_apply_group_done():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "group_done", count=3)
     assert s.group_count == 3
@@ -33,7 +33,7 @@ def test_apply_group_done():
 
 
 def test_apply_item_start():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "group_done", count=3)
     apply_event(s, "item_start", idx=1, total=3)
@@ -43,7 +43,7 @@ def test_apply_item_start():
 
 
 def test_apply_item_stage():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "group_done", count=2)
     apply_event(s, "item_start", idx=1, total=2)
@@ -54,7 +54,7 @@ def test_apply_item_stage():
 
 
 def test_apply_item_stage_non_tool_does_not_log():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "group_done", count=1)
     apply_event(s, "item_start", idx=1, total=1)
@@ -63,7 +63,7 @@ def test_apply_item_stage_non_tool_does_not_log():
 
 
 def test_apply_item_done():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "group_done", count=1)
     apply_event(s, "item_start", idx=1, total=1)
@@ -74,7 +74,7 @@ def test_apply_item_done():
 
 
 def test_apply_item_usage_accumulates():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "item_usage", idx=1, input_tokens=100, output_tokens=50,
                 cache_read_tokens=20, requests=3, tool_calls=2)
@@ -88,7 +88,7 @@ def test_apply_item_usage_accumulates():
 
 
 def test_tool_calls_counted_from_item_stage():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "group_done", count=1)
     apply_event(s, "item_start", idx=1, total=1)
@@ -100,7 +100,7 @@ def test_tool_calls_counted_from_item_stage():
 
 
 def test_tool_log_capped_at_five():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     s = _make_state()
     apply_event(s, "group_done", count=1)
     apply_event(s, "item_start", idx=1, total=1)
@@ -110,7 +110,7 @@ def test_tool_log_capped_at_five():
 
 
 def test_render_header_returns_renderable():
-    from schnapplist.cli.display import _render_header
+    from schnapplist.ui.cli.display import _render_header
     from rich.console import Console
     s = _make_state()
     renderable = _render_header(s)
@@ -120,7 +120,7 @@ def test_render_header_returns_renderable():
 
 
 def test_render_items_returns_renderable():
-    from schnapplist.cli.display import _render_items, apply_event
+    from schnapplist.ui.cli.display import _render_items, apply_event
     from rich.console import Console
     s = _make_state()
     apply_event(s, "group_done", count=2)
@@ -134,7 +134,7 @@ def test_render_items_returns_renderable():
 
 
 def test_render_llm_returns_renderable():
-    from schnapplist.cli.display import _render_llm, apply_event
+    from schnapplist.ui.cli.display import _render_llm, apply_event
     from rich.console import Console
     s = _make_state()
     apply_event(s, "item_usage", idx=1, input_tokens=500, output_tokens=200,
@@ -146,7 +146,7 @@ def test_render_llm_returns_renderable():
 
 
 def test_item_done_low_confidence_sets_flag():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     state = RunState()
     apply_event(state, "item_start", idx=1, total=1)
     apply_event(state, "item_done", idx=1, name="Toshiba SRAM", price="6.00 EUR",
@@ -156,7 +156,7 @@ def test_item_done_low_confidence_sets_flag():
 
 
 def test_item_done_high_confidence_no_flag():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     state = RunState()
     apply_event(state, "item_start", idx=1, total=1)
     apply_event(state, "item_done", idx=1, name="Sony WH-1000XM5", price="180.00 EUR",
@@ -165,7 +165,7 @@ def test_item_done_high_confidence_no_flag():
 
 
 def test_render_items_low_confidence_shows_warning_icon():
-    from schnapplist.cli.display import apply_event
+    from schnapplist.ui.cli.display import apply_event
     from rich.console import Console
     state = RunState()
     apply_event(state, "item_start", idx=1, total=1)
@@ -182,7 +182,7 @@ def test_render_items_low_confidence_shows_warning_icon():
 
 def test_toks_uses_gen_secs():
     """tok/s uses accumulated generation time, not wall-clock elapsed."""
-    from schnapplist.cli.display import _render_llm, apply_event
+    from schnapplist.ui.cli.display import _render_llm, apply_event
     from rich.console import Console
 
     s = _make_state()

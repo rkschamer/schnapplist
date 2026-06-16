@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..core.models import Item
+    from ...core.models import Item
 
 import click
 from rich.console import Console
@@ -82,7 +82,7 @@ def process(
     ollama_host: str | None,
 ) -> None:
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
-    from ..services.process_service import run_process
+    from ...services.process_service import run_process
 
     rich_cb = RichLiveCallback()
     decision_cb = RichDecisionCallback(rich_cb)
@@ -119,8 +119,8 @@ def process(
 
     # After review: offer eBay CSV export if any item targets eBay.
     # Load items once from the known report_path to avoid a second parse / re-scan.
-    from ..providers.ebay_csv_exporter import export_to_csv
-    from ..services.posting_service import items_from_report_path
+    from ...providers.ebay_csv_exporter import export_to_csv
+    from ...services.posting_service import items_from_report_path
 
     items = items_from_report_path(report_path)
     ebay_items = [it for it in items if it.marketplace == "ebay"]
@@ -164,7 +164,7 @@ def process(
 )
 def review(output_dir: Path, report: Path | None) -> None:
     """Open the Markdown report in $EDITOR."""
-    from ..services.item_service import find_latest_report
+    from ...services.item_service import find_latest_report
 
     report_path = Path(report) if report else find_latest_report(output_dir)
     if report_path is None:
@@ -214,7 +214,7 @@ def _find_fallback_editor() -> str:
 )
 def list_items(output_dir: Path) -> None:
     """Show all processed items and their status."""
-    from ..services.item_service import list_items as svc_list_items
+    from ...services.item_service import list_items as svc_list_items
 
     items_data = svc_list_items(output_dir)
     if not items_data:
@@ -293,7 +293,7 @@ def post(
     If --item-id is given, posts that single item.
     Otherwise, posts all approved items (set Approved to true in the report).
     """
-    from ..services.posting_service import load_items_from_report, post_item
+    from ...services.posting_service import load_items_from_report, post_item
 
     try:
         _, items = load_items_from_report(output_dir)
@@ -323,7 +323,7 @@ def post(
         console.print(f"\nPosting [bold]{total}[/bold] items…\n")
 
     for idx, item in enumerate(targets, 1):
-        from .config import DEFAULT_MARKETPLACE
+        from ...config import DEFAULT_MARKETPLACE
         effective_marketplace = marketplace or item.marketplace or DEFAULT_MARKETPLACE
 
         prefix = f"[dim][{idx}/{total}][/dim] " if total > 1 else ""
@@ -403,9 +403,9 @@ def export() -> None:
 )
 def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> None:
     """Generate an eBay draft listing CSV for bulk upload."""
-    from ..providers.ebay_csv_exporter import export_to_csv
-    from ..services.posting_service import items_from_report_path
-    from ..services.item_service import find_latest_report
+    from ...providers.ebay_csv_exporter import export_to_csv
+    from ...services.posting_service import items_from_report_path
+    from ...services.item_service import find_latest_report
 
     report_path = Path(run_dir) if run_dir else find_latest_report(output_dir)
 
@@ -443,7 +443,7 @@ def config() -> None:
 @click.option("--force", is_flag=True, default=False, help="Overwrite existing config file.")
 def config_init(force: bool) -> None:
     """Write a starter config.toml to the user config directory."""
-    from .config import TOML_USER_PATH
+    from ...config import TOML_USER_PATH
 
     if TOML_USER_PATH.exists() and not force:
         console.print(
@@ -465,7 +465,7 @@ def config_init(force: bool) -> None:
 @config.command("show")
 def config_show() -> None:
     """Show which config file is active and its resolved settings."""
-    from .config import (
+    from ...config import (
         CLAUDE_MODEL,
         DEFAULT_MARKETPLACE,
         LISTING_DISCLAIMER,
