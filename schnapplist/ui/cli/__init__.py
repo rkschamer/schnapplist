@@ -1,4 +1,13 @@
-"""CLI entry point — schnapplist."""
+"""CLI entry point — Click commands and Rich terminal display.
+
+No business logic lives here. Commands delegate to services/:
+  process  →  services.process_service.run_process
+  post     →  services.posting_service.post_item
+  list     →  services.item_service.list_items
+  review   →  opens $EDITOR on the run folder
+  export   →  providers.ebay_csv_exporter.export_to_csv
+  config   →  reads config.py constants
+"""
 
 from __future__ import annotations
 
