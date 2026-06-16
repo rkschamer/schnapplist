@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from pathlib import Path
 
 from ..config import EBAY_CSV_ACTION_HEADER
@@ -48,21 +50,27 @@ def export_to_csv(items: list[Item], output_path: Path) -> int:
     rows = [_item_to_row(item) for item in items
             if item.approved and item.marketplace == "ebay"]
 
-    lines = _INFO_LINES + [";".join(_COLUMNS)]
-    for row in rows:
-        lines.append(";".join(row))
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    buf = io.StringIO()
+    for info_line in _INFO_LINES:
+        buf.write(info_line + "\n")
+
+    writer = csv.writer(buf, delimiter=";", quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
+    writer.writerow(_COLUMNS)
+    writer.writerows(rows)
+
+    output_path.write_text(buf.getvalue(), encoding="utf-8")
     return len(rows)
 
 
 def _item_to_row(item: Item) -> list[str]:
     opts = item.ebay_options
-    price = str(item.price_info.suggested_price) if item.price_info else ""
+    price = f"{item.price_info.suggested_price:.2f}" if item.price_info else ""
     category_id = (opts.ebay_category_id or "") if opts else ""
     listing_type = opts.listing_type if opts else EbayListingType.FIXED
     fmt = _FORMAT_MAP[listing_type]
-    description = f"<p>{item.description}</p>" if item.description else ""
+    description = f"<p>{item.description}</p>"
 
     return [
         "Draft",

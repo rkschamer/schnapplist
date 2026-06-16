@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import csv
-import io
 from pathlib import Path
 
 from schnapplist.core.ebay_csv_exporter import export_to_csv
@@ -116,7 +114,7 @@ def test_export_data_row_columns(tmp_path: Path):
     assert row[2] == "12345"      # Category ID
     assert row[3] == "Sony WH-1000XM5 Kopfhörer"  # Title
     assert row[4] == ""           # UPC empty
-    assert row[5] == "180.0"      # Price
+    assert row[5] == "180.00"      # Price
     assert row[6] == "1"          # Quantity
     assert row[7] == ""           # Photo URL empty
     assert row[8] == "3000"       # Condition ID for GOOD
@@ -148,3 +146,12 @@ def test_export_returns_zero_when_nothing_to_export(tmp_path: Path):
     out = tmp_path / "export.csv"
     count = export_to_csv([item], out)
     assert count == 0
+
+
+def test_export_category_id_none_writes_empty_column(tmp_path: Path):
+    item = _make_ebay_item(category_id=None, tmp_path=tmp_path)
+    out = tmp_path / "export.csv"
+    export_to_csv([item], out)
+    lines = out.read_text(encoding="utf-8").splitlines()
+    row = lines[5].split(";")
+    assert row[2] == ""  # Category ID column is empty when None
