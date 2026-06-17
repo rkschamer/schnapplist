@@ -63,6 +63,10 @@ Add:
 
 The standalone `review` command keeps `_run_review` unchanged.
 
+## Broader principle
+
+All `click.confirm` / `click.prompt` / plain TTY input calls should be eliminated from the CLI in favour of Rich modal dialogs. These two are the only remaining instances — this change completes that migration.
+
 ## Out of scope
 
 - No changes to `_run_review` (used by the `review` command)
