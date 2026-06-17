@@ -11,6 +11,7 @@ No business logic lives here. Commands delegate to services/:
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -28,6 +29,18 @@ from rich.table import Table
 from .display import RichDecisionCallback, RichLiveCallback
 
 console = Console()
+
+
+def _configure_debug_logging() -> None:
+    """Write agent DEBUG traces to schnapplist-debug.log when SCHNAPPLIST_DEBUG=1."""
+    if os.getenv("SCHNAPPLIST_DEBUG") != "1":
+        return
+    handler = logging.FileHandler("schnapplist-debug.log", mode="w")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    logger = logging.getLogger("schnapplist.agents")
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    logger.propagate = False  # don't bubble up to root logger
 
 
 # ---------------------------------------------------------------------------
@@ -91,6 +104,7 @@ def process(
     ollama_host: str | None,
 ) -> None:
     """Analyse photos, identify items, look up prices, and write a Markdown report."""
+    _configure_debug_logging()
     from ...services.process_service import run_process
 
     rich_cb = RichLiveCallback()

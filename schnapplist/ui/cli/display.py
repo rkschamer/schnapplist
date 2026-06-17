@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from rich.align import Align
-from rich.console import Console
+from rich.console import Console, ConsoleOptions, RenderResult
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
@@ -260,20 +260,46 @@ def _make_layout() -> Layout:
     return layout
 
 
+class _LiveRenderable:
+    """Renderable handed to Live. Rebuilt from state on every refresh tick.
+
+    The render thread is the only caller of __rich_console__ and therefore the
+    only writer of terminal bytes. The main thread only mutates RunState — it
+    never touches the Layout object.
+    """
+
+    def __init__(self, state: RunState) -> None:
+        self._state = state
+        self._modal: Any | None = None
+
+    def set_modal(self, renderable: Any | None) -> None:
+        self._modal = renderable
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:  # noqa: ARG002
+        if self._modal is not None:
+            yield Align.center(self._modal, vertical="middle")
+            return
+        layout = _make_layout()
+        layout["header"].update(_render_header(self._state))
+        layout["items"].update(_render_items(self._state))
+        layout["llm"].update(_render_llm(self._state))
+        yield layout
+
+
 # ---------------------------------------------------------------------------
 # Callbacks
 # ---------------------------------------------------------------------------
 
 class RichLiveCallback:
-    """Drives a Rich Live/Layout display from ProcessWorkflow events."""
+    """Drives a Rich Live display from ProcessWorkflow events."""
 
     def __init__(self) -> None:
         self._state = RunState()
-        self._layout = _make_layout()
+        self._renderable = _LiveRenderable(self._state)
         self._live = Live(
-            self._layout,
+            self._renderable,
             console=console,
-            auto_refresh=False,
+            refresh_per_second=4,
             transient=False,
         )
 
@@ -291,28 +317,17 @@ class RichLiveCallback:
         self._live.start()
 
     def show_modal(self, renderable: Any) -> None:
-        """Replace the body with a centered modal and refresh once."""
-        self._layout["body"].update(Align.center(renderable, vertical="middle"))
-        self._live.refresh()
+        """Show a modal overlay; the render thread picks it up on the next tick."""
+        self._renderable.set_modal(renderable)
+        self._live.refresh()  # force immediate display before we block on keypress
 
     def restore_body(self) -> None:
-        """Restore the normal two-column body after a modal."""
-        self._layout["body"].update(self._layout["body"])
-        # Re-split body into items/llm columns
-        self._layout["body"].split_row(
-            Layout(name="items", ratio=2),
-            Layout(name="llm", ratio=1),
-        )
-        self._layout["items"].update(_render_items(self._state))
-        self._layout["llm"].update(_render_llm(self._state))
-        self._live.refresh()
+        """Remove the modal overlay; normal layout resumes on the next tick."""
+        self._renderable.set_modal(None)
 
     def __call__(self, event: str, **kwargs: Any) -> None:
-        apply_event(self._state, event, **kwargs)
-        self._layout["header"].update(_render_header(self._state))
-        self._layout["items"].update(_render_items(self._state))
-        self._layout["llm"].update(_render_llm(self._state))
-        self._live.refresh()
+        with self._lock:
+            apply_event(self._state, event, **kwargs)
 
 
 class RichDecisionCallback:

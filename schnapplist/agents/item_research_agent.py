@@ -6,11 +6,14 @@ import asyncio
 import base64
 import io
 import json
+import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
+
+log = logging.getLogger(__name__)
 
 from PIL import Image
 from pydantic import BaseModel
@@ -133,7 +136,7 @@ Your job:
 3. Call web_search to find current prices on kleinanzeigen.de and ebay.de.
 4. After each web_search, ask yourself: do I have brand, model, at least one verified \
 spec, and a price signal? If yes and your confidence would be >= {target_confidence:.2f}, \
-call finish immediately — do not search further.
+produce your final structured output immediately — do not search further.
 5. If any spec or price is still unclear, call web_search again with a refined query.
 
 Rules:
@@ -181,16 +184,21 @@ def _build_agent(
     @agent.tool
     def analyze_photos(ctx: RunContext[_AgentDeps]) -> JsonDict:
         """Identify the item from photos. Returns name, brand, model, condition, category, keywords."""
+        log.debug("tool:analyze_photos — start")
         if on_stage is not None:
             on_stage("analyze_photos")
-        return _analyze_photos_impl(ctx.deps.photos, ctx.deps.client)
+        result = _analyze_photos_impl(ctx.deps.photos, ctx.deps.client)
+        log.debug("tool:analyze_photos — done, name=%r", result.get("name"))
+        return result
 
     @agent.tool
     def web_search(ctx: RunContext[_AgentDeps], query: str, max_results: int = 8) -> str:
         """Search the web. Use for spec lookup and price research. Returns newline-separated snippets."""
+        log.debug("tool:web_search — start query=%r", query)
         if on_stage is not None:
             on_stage("web_search")
         results = _ddg_search(query, max_results=max_results)
+        log.debug("tool:web_search — done, %d results", len(results))
         if not results:
             return "No results found."
         return "\n".join(
@@ -217,19 +225,29 @@ def run_item_research_agent(
     async def _run() -> AgentResult:
         from pydantic_ai._agent_graph import CallToolsNode, ModelRequestNode  # noqa: PLC0415
         request_start: float | None = None
+        log.debug("agent:run — starting iter loop")
         async with agent.iter(
             "Research this item and produce a verified listing.",
             deps=deps,
             usage_limits=UsageLimits(request_limit=max_iterations),
         ) as run:
             async for node in run:
+                node_type = type(node).__name__
+                log.debug("agent:node — %s", node_type)
                 if isinstance(node, ModelRequestNode):
                     request_start = asyncio.get_event_loop().time()
+                    log.debug("agent:model_request — waiting for LLM response")
                 elif isinstance(node, CallToolsNode):
                     gen_secs = (asyncio.get_event_loop().time() - request_start) if request_start is not None else 0.0
                     request_start = None
+                    usage = run.usage()
+                    log.debug(
+                        "agent:call_tools — requests=%d tool_calls=%d in=%d out=%d gen_secs=%.1f",
+                        usage.requests, usage.tool_calls, usage.input_tokens, usage.output_tokens, gen_secs,
+                    )
                     if on_usage is not None:
-                        on_usage(run.usage(), gen_secs)
+                        on_usage(usage, gen_secs)
+        log.debug("agent:run — iter loop finished")
         return AgentResult(output=run.result.output, usage=run.result.usage())
 
     return asyncio.run(_run())
