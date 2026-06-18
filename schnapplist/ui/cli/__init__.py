@@ -122,50 +122,51 @@ def process(
                 on_progress=rich_cb,
                 on_decision=decision_cb,
             )
+
+            if result.state.total_photos == 0:
+                console.print("[yellow]No supported photos found in directory.[/yellow]")
+                return
+
+            report_path = result.report_path
+            if report_path is None:
+                console.print("[red]Processing did not produce a report.[/red]")
+                sys.exit(1)
+
+            console.print(f"\n[bold green]Report:[/bold green] {report_path}")
+
+            item_paths = sorted(
+                report_path.glob("item-*.md"),
+                key=lambda p: int(p.stem.split("-")[1]),
+            )
+            decision_cb("report_ready", report_path=report_path, item_paths=item_paths)
+
+            from ...providers.ebay_csv_exporter import export_to_csv
+            from ...services.posting_service import items_from_report_path
+
+            items = items_from_report_path(report_path)
+            ebay_items = [it for it in items if it.marketplace == "ebay"]
+            approved_ebay = [it for it in ebay_items if it.approved]
+
+            if approved_ebay:
+                choice = decision_cb(
+                    "ebay_export_prompt",
+                    approved_count=len(approved_ebay),
+                    total_ebay_count=len(ebay_items),
+                )
+                if choice == "yes":
+                    csv_path = report_path / "ebay-export.csv"
+                    count = export_to_csv(items, csv_path)
+                    if count == 0:
+                        console.print("[yellow]No approved eBay items — CSV not written.[/yellow]")
+                    else:
+                        console.print(
+                            f"\n[bold green]eBay CSV written:[/bold green] {csv_path}  "
+                            f"([bold]{count}[/bold] approved item(s))"
+                        )
+
     except (ValueError, RuntimeError) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         sys.exit(1)
-
-    if result.state.total_photos == 0:
-        console.print("[yellow]No supported photos found in directory.[/yellow]")
-        return
-
-    report_path = result.report_path
-    if report_path is None:
-        console.print("[red]Processing did not produce a report.[/red]")
-        sys.exit(1)
-
-    console.print(f"\n[bold green]Report:[/bold green] {report_path}")
-
-    item_paths = sorted(
-        report_path.glob("item-*.md"),
-        key=lambda p: int(p.stem.split("-")[1]),
-    )
-    decision_cb("report_ready", report_path=report_path, item_paths=item_paths)
-
-    from ...providers.ebay_csv_exporter import export_to_csv
-    from ...services.posting_service import items_from_report_path
-
-    items = items_from_report_path(report_path)
-    ebay_items = [it for it in items if it.marketplace == "ebay"]
-    approved_ebay = [it for it in ebay_items if it.approved]
-
-    if approved_ebay:
-        choice = decision_cb(
-            "ebay_export_prompt",
-            approved_count=len(approved_ebay),
-            total_ebay_count=len(ebay_items),
-        )
-        if choice == "yes":
-            csv_path = report_path / "ebay-export.csv"
-            count = export_to_csv(items, csv_path)
-            if count == 0:
-                console.print("[yellow]No approved eBay items — CSV not written.[/yellow]")
-            else:
-                console.print(
-                    f"\n[bold green]eBay CSV written:[/bold green] {csv_path}  "
-                    f"([bold]{count}[/bold] approved item(s))"
-                )
 
     console.print(
         "\nWhen ready, run [bold]schnapplist post[/bold] to create listings."
