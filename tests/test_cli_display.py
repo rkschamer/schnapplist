@@ -249,7 +249,8 @@ def test_decision_cb_ebay_export_prompt_no(monkeypatch):
     from schnapplist.ui.cli.display import RichDecisionCallback, RichLiveCallback
 
     live_cb = RichLiveCallback.__new__(RichLiveCallback)
-    live_cb.show_modal = lambda r: None
+    shown = []
+    live_cb.show_modal = lambda r: shown.append(r)
     restored = []
     live_cb.restore_body = lambda: restored.append(True)
 
@@ -259,4 +260,5 @@ def test_decision_cb_ebay_export_prompt_no(monkeypatch):
     result = cb("ebay_export_prompt", approved_count=2, total_ebay_count=3)
 
     assert result == "no"
+    assert len(shown) == 1
     assert len(restored) == 1

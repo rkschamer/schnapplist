@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import termios
+import threading
 import time
 import tty
 from dataclasses import dataclass, field
@@ -302,6 +303,7 @@ class RichLiveCallback:
             refresh_per_second=4,
             transient=False,
         )
+        self._lock = threading.Lock()
 
     def __enter__(self) -> RichLiveCallback:
         self._live.__enter__()
@@ -363,8 +365,8 @@ class RichDecisionCallback:
                 width=60,
                 padding=(1, 2),
             )
-            self._progress_cb.show_modal(modal)
             try:
+                self._progress_cb.show_modal(modal)
                 choice = _read_single_key({"r", "s"}, default="s")
             finally:
                 self._progress_cb.restore_body()
@@ -388,8 +390,8 @@ class RichDecisionCallback:
                 width=60,
                 padding=(1, 2),
             )
-            self._progress_cb.show_modal(modal)
             try:
+                self._progress_cb.show_modal(modal)
                 _read_single_key(set("abcdefghijklmnopqrstuvwxyz \x1b"), default=" ")
             finally:
                 self._progress_cb.restore_body()
@@ -417,8 +419,8 @@ class RichDecisionCallback:
                 width=60,
                 padding=(1, 2),
             )
-            self._progress_cb.show_modal(modal)
             try:
+                self._progress_cb.show_modal(modal)
                 choice = _read_single_key({"y", "n"}, default="n")
             finally:
                 self._progress_cb.restore_body()
