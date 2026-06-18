@@ -124,15 +124,15 @@ def process(
             )
 
             if result.state.total_photos == 0:
-                console.print("[yellow]No supported photos found in directory.[/yellow]")
+                rich_cb.print("[yellow]No supported photos found in directory.[/yellow]")
                 return
 
             report_path = result.report_path
             if report_path is None:
-                console.print("[red]Processing did not produce a report.[/red]")
+                rich_cb.print("[red]Processing did not produce a report.[/red]")
                 sys.exit(1)
 
-            console.print(f"\n[bold green]Report:[/bold green] {report_path}")
+            rich_cb.print(f"\n[bold green]Report:[/bold green] {report_path}")
 
             item_paths = sorted(
                 report_path.glob("item-*.md"),
@@ -157,9 +157,9 @@ def process(
                     csv_path = report_path / "ebay-export.csv"
                     count = export_to_csv(items, csv_path)
                     if count == 0:
-                        console.print("[yellow]No approved eBay items — CSV not written.[/yellow]")
+                        rich_cb.print("[yellow]No approved eBay items — CSV not written.[/yellow]")
                     else:
-                        console.print(
+                        rich_cb.print(
                             f"\n[bold green]eBay CSV written:[/bold green] {csv_path}  "
                             f"([bold]{count}[/bold] approved item(s))"
                         )

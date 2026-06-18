@@ -319,6 +319,10 @@ class RichLiveCallback:
     def start(self) -> None:
         self._live.start()
 
+    def print(self, *args: Any, **kwargs: Any) -> None:
+        """Print via the Live-owned console so Rich can pause/resume correctly."""
+        self._live.console.print(*args, **kwargs)
+
     def show_modal(self, renderable: Any) -> None:
         """Show a modal overlay; the render thread picks it up on the next tick."""
         self._renderable.set_modal(renderable)
