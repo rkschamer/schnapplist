@@ -137,11 +137,12 @@ def process(
 
     console.print(f"\n[bold green]Report:[/bold green] {report_path}")
 
-    if click.confirm("\nReview and edit the report now?", default=True):
-        _run_review(report_path)
+    item_paths = sorted(
+        report_path.glob("item-*.md"),
+        key=lambda p: int(p.stem.split("-")[1]),
+    )
+    decision_cb("report_ready", report_path=report_path, item_paths=item_paths)
 
-    # After review: offer eBay CSV export if any item targets eBay.
-    # Load items once from the known report_path to avoid a second parse / re-scan.
     from ...providers.ebay_csv_exporter import export_to_csv
     from ...services.posting_service import items_from_report_path
 
@@ -149,17 +150,20 @@ def process(
     ebay_items = [it for it in items if it.marketplace == "ebay"]
     approved_ebay = [it for it in ebay_items if it.approved]
 
-    if ebay_items and click.confirm(
-        f"\n{len(approved_ebay)} approved eBay item(s) ready. Generate CSV draft?",
-        default=True,
-    ):
-        csv_path = report_path / "ebay-export.csv"
-        count = export_to_csv(items, csv_path)
-        if count == 0:
-            console.print("[yellow]No approved eBay items — CSV not written.[/yellow]")
-        else:
-            console.print(
-                f"\n[bold green]eBay CSV written:[/bold green] {csv_path}  "
+    if approved_ebay:
+        choice = decision_cb(
+            "ebay_export_prompt",
+            approved_count=len(approved_ebay),
+            total_ebay_count=len(ebay_items),
+        )
+        if choice == "yes":
+            csv_path = report_path / "ebay-export.csv"
+            count = export_to_csv(items, csv_path)
+            if count == 0:
+                console.print("[yellow]No approved eBay items — CSV not written.[/yellow]")
+            else:
+                console.print(
+                    f"\n[bold green]eBay CSV written:[/bold green] {csv_path}  "
                     f"([bold]{count}[/bold] approved item(s))"
                 )
 
