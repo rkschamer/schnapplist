@@ -381,7 +381,7 @@ class RichDecisionCallback:
                     "\n\n",
                     ("Press any key when done reviewing…", "dim italic"),
                 ),
-                title=Text("[bold blue]Reports ready[/bold blue]"),
+                title="[bold blue]Reports ready[/bold blue]",
                 border_style="blue",
                 width=60,
                 padding=(1, 2),
