@@ -394,6 +394,35 @@ class RichDecisionCallback:
             finally:
                 self._progress_cb.restore_body()
             return ""
+        elif event == "ebay_export_prompt":
+            approved_count = kwargs.get("approved_count")
+            total_ebay_count = kwargs.get("total_ebay_count")
+            if approved_count is None or total_ebay_count is None:
+                return "no"
+            modal = Panel(
+                Text.assemble(
+                    (f"{approved_count} of {total_ebay_count} eBay item(s) approved.", ""),
+                    "\n\n",
+                    ("  Generate CSV draft?\n\n", ""),
+                    ("  ", ""),
+                    ("[ y ]", "bold black on green"),
+                    ("  yes      ", ""),
+                    ("[ n ]", "bold black on white"),
+                    ("  no", ""),
+                    "\n\n",
+                    ("  press a key…", "dim italic"),
+                ),
+                title=Text("eBay CSV Export", style="bold green"),
+                border_style="green",
+                width=60,
+                padding=(1, 2),
+            )
+            self._progress_cb.show_modal(modal)
+            try:
+                choice = _read_single_key({"y", "n"}, default="n")
+            finally:
+                self._progress_cb.restore_body()
+            return "yes" if choice == "y" else "no"
         return "skip"
 
 

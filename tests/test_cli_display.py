@@ -222,3 +222,41 @@ def test_decision_cb_report_ready_returns_empty_string(tmp_path, monkeypatch):
     assert result == ""
     assert len(shown) == 1  # modal was displayed
     assert len(restored) == 1  # restore_body was called (terminal cleanup)
+
+
+def test_decision_cb_ebay_export_prompt_yes(monkeypatch):
+    """ebay_export_prompt returns 'yes' when user presses y."""
+    from schnapplist.ui.cli.display import RichDecisionCallback, RichLiveCallback
+
+    live_cb = RichLiveCallback.__new__(RichLiveCallback)
+    shown = []
+    live_cb.show_modal = lambda r: shown.append(r)
+    restored = []
+    live_cb.restore_body = lambda: restored.append(True)
+
+    monkeypatch.setattr("schnapplist.ui.cli.display._read_single_key", lambda allowed, default: "y")
+
+    cb = RichDecisionCallback(live_cb)
+    result = cb("ebay_export_prompt", approved_count=2, total_ebay_count=3)
+
+    assert result == "yes"
+    assert len(shown) == 1
+    assert len(restored) == 1
+
+
+def test_decision_cb_ebay_export_prompt_no(monkeypatch):
+    """ebay_export_prompt returns 'no' when user presses n."""
+    from schnapplist.ui.cli.display import RichDecisionCallback, RichLiveCallback
+
+    live_cb = RichLiveCallback.__new__(RichLiveCallback)
+    live_cb.show_modal = lambda r: None
+    restored = []
+    live_cb.restore_body = lambda: restored.append(True)
+
+    monkeypatch.setattr("schnapplist.ui.cli.display._read_single_key", lambda allowed, default: "n")
+
+    cb = RichDecisionCallback(live_cb)
+    result = cb("ebay_export_prompt", approved_count=2, total_ebay_count=3)
+
+    assert result == "no"
+    assert len(restored) == 1
