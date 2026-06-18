@@ -27,6 +27,20 @@ uv sync --extra playwright
 uv run playwright install chromium
 ```
 
+### Install as a global CLI tool
+
+To use `schnapplist` and `schnapplist-ui` from anywhere without `uv run`:
+
+```bash
+uv tool install /path/to/schnapplist
+```
+
+To update after code changes:
+
+```bash
+uv tool install --reinstall /path/to/schnapplist
+```
+
 ## Configure
 
 Copy `.env.example` to `.env` and fill in what you need:
