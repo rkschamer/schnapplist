@@ -199,3 +199,24 @@ def test_toks_uses_gen_secs():
     assert "tok/s" in output
     # 200 tokens / 5.0s = 40.0 tok/s
     assert "40.0" in output
+
+
+def test_decision_cb_report_ready_returns_empty_string(tmp_path, monkeypatch):
+    """report_ready shows a modal and returns '' after a keypress."""
+    from schnapplist.ui.cli.display import RichDecisionCallback, RichLiveCallback
+
+    # Stub out the Live display so no terminal I/O happens
+    live_cb = RichLiveCallback.__new__(RichLiveCallback)
+    shown = []
+    live_cb.show_modal = lambda r: shown.append(r)
+    live_cb.restore_body = lambda: None
+
+    # Stub _read_single_key to return immediately without blocking
+    monkeypatch.setattr("schnapplist.ui.cli.display._read_single_key", lambda allowed, default: default)
+
+    cb = RichDecisionCallback(live_cb)
+    item_paths = [tmp_path / "item-1.md", tmp_path / "item-2.md"]
+    result = cb("report_ready", report_path=tmp_path, item_paths=item_paths)
+
+    assert result == ""
+    assert len(shown) == 1  # modal was displayed
