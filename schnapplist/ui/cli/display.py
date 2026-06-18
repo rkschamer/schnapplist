@@ -277,8 +277,9 @@ class _LiveRenderable:
         self._modal = renderable
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:  # noqa: ARG002
-        if self._modal is not None:
-            yield Align.center(self._modal, vertical="middle")
+        modal = self._modal
+        if modal is not None:
+            yield Align.center(modal, vertical="middle")
             return
         layout = _make_layout()
         layout["header"].update(_render_header(self._state))
@@ -392,7 +393,7 @@ class RichDecisionCallback:
             )
             try:
                 self._progress_cb.show_modal(modal)
-                _read_single_key(set("abcdefghijklmnopqrstuvwxyz \x1b"), default=" ")
+                _read_single_key(set(), default=" ", accept_any=True)
             finally:
                 self._progress_cb.restore_body()
             return ""
@@ -428,11 +429,12 @@ class RichDecisionCallback:
         return "skip"
 
 
-def _read_single_key(allowed: set[str], default: str) -> str:
+def _read_single_key(allowed: set[str], default: str, accept_any: bool = False) -> str:
     """Read a single keypress from stdin in raw mode without echoing.
 
     Returns the lowercased key if it's in `allowed`, otherwise `default`.
     Falls back to the default if stdin isn't a TTY.
+    If `accept_any` is True, any keypress (after Ctrl-C/Ctrl-D) returns `default`.
     """
     if not sys.stdin.isatty():
         return default
@@ -445,6 +447,8 @@ def _read_single_key(allowed: set[str], default: str) -> str:
             if ch in ("\x03", "\x04"):  # Ctrl-C / Ctrl-D
                 raise KeyboardInterrupt
             if ch in ("\r", "\n"):
+                return default
+            if accept_any:
                 return default
             if ch in allowed:
                 return ch

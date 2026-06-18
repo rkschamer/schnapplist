@@ -213,7 +213,7 @@ def test_decision_cb_report_ready_returns_empty_string(tmp_path, monkeypatch):
     live_cb.restore_body = lambda: restored.append(True)
 
     # Stub _read_single_key to return immediately without blocking
-    monkeypatch.setattr("schnapplist.ui.cli.display._read_single_key", lambda allowed, default: default)
+    monkeypatch.setattr("schnapplist.ui.cli.display._read_single_key", lambda allowed, default, **kw: default)
 
     cb = RichDecisionCallback(live_cb)
     item_paths = [tmp_path / "item-1.md", tmp_path / "item-2.md"]
