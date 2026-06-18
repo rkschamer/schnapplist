@@ -445,7 +445,7 @@ def _read_single_key(allowed: set[str], default: str, accept_any: bool = False) 
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
-        tty.setraw(fd)
+        tty.setcbreak(fd)
         while True:
             ch = sys.stdin.read(1).lower()
             if ch in ("\x03", "\x04"):  # Ctrl-C / Ctrl-D
