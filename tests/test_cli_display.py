@@ -209,7 +209,8 @@ def test_decision_cb_report_ready_returns_empty_string(tmp_path, monkeypatch):
     live_cb = RichLiveCallback.__new__(RichLiveCallback)
     shown = []
     live_cb.show_modal = lambda r: shown.append(r)
-    live_cb.restore_body = lambda: None
+    restored = []
+    live_cb.restore_body = lambda: restored.append(True)
 
     # Stub _read_single_key to return immediately without blocking
     monkeypatch.setattr("schnapplist.ui.cli.display._read_single_key", lambda allowed, default: default)
@@ -220,3 +221,4 @@ def test_decision_cb_report_ready_returns_empty_string(tmp_path, monkeypatch):
 
     assert result == ""
     assert len(shown) == 1  # modal was displayed
+    assert len(restored) == 1  # restore_body was called (terminal cleanup)

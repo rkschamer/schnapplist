@@ -370,8 +370,10 @@ class RichDecisionCallback:
                 self._progress_cb.restore_body()
             return "retry" if choice == "r" else "skip"
         elif event == "report_ready":
-            report_path = kwargs["report_path"]
-            item_paths: list = kwargs["item_paths"]
+            report_path = kwargs.get("report_path")
+            item_paths: list = kwargs.get("item_paths") or []
+            if report_path is None:
+                return ""
             file_lines = "\n".join(f"  {p.name}" for p in item_paths)
             modal = Panel(
                 Text.assemble(
@@ -381,14 +383,14 @@ class RichDecisionCallback:
                     "\n\n",
                     ("Press any key when done reviewing…", "dim italic"),
                 ),
-                title="[bold blue]Reports ready[/bold blue]",
+                title=Text("Reports ready", style="bold blue"),
                 border_style="blue",
                 width=60,
                 padding=(1, 2),
             )
             self._progress_cb.show_modal(modal)
             try:
-                _read_single_key(set("abcdefghijklmnopqrstuvwxyz \r\n"), default=" ")
+                _read_single_key(set("abcdefghijklmnopqrstuvwxyz \x1b"), default=" ")
             finally:
                 self._progress_cb.restore_body()
             return ""
