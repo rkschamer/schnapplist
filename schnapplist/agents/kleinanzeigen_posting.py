@@ -188,11 +188,14 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
         f"Condition label: {payload.get('condition', '')}\n"
         f"Shipping: {payload.get('shipping', 'versand')}\n"
         + (
-            f"Shipping methods to enable: {', '.join(cast(list[str], payload['shipping_methods']))}\n"
+            "Shipping methods to enable: "
+            + ", ".join(cast(list[str], payload["shipping_methods"]))
+            + "\n"
             if payload.get("shipping_methods")
             else ""
         )
-        + "\nNavigate to https://www.kleinanzeigen.de/p-anzeige-aufgeben.html and complete everything. "
+        + "\nNavigate to https://www.kleinanzeigen.de/p-anzeige-aufgeben.html"
+        " and complete everything. "
         "At the end, respond with exactly: FINAL_URL: <url>"
     )
 

@@ -24,20 +24,22 @@ def _get_state() -> SessionState:
 
 
 def _nav_sidebar() -> None:
-    with ui.left_drawer(top_corner=True, bottom_corner=True).classes("bg-gray-50 border-r"):
-        with ui.column().classes("p-4 gap-1"):
-            ui.label("Schnapplist").classes("text-lg font-bold text-primary mb-4")
-            for label, path, icon in [
-                ("Upload", "/", "upload"),
-                ("Process", "/process", "settings"),
-                ("Review", "/review", "rate_review"),
-                ("Post", "/post", "send"),
-            ]:
-                ui.button(
-                    label,
-                    icon=icon,
-                    on_click=lambda p=path: ui.navigate.to(p),
-                ).props("flat align=left").classes("w-full justify-start")
+    with (
+        ui.left_drawer(top_corner=True, bottom_corner=True).classes("bg-gray-50 border-r"),
+        ui.column().classes("p-4 gap-1"),
+    ):
+        ui.label("Schnapplist").classes("text-lg font-bold text-primary mb-4")
+        for label, path, icon in [
+            ("Upload", "/", "upload"),
+            ("Process", "/process", "settings"),
+            ("Review", "/review", "rate_review"),
+            ("Post", "/post", "send"),
+        ]:
+            ui.button(
+                label,
+                icon=icon,
+                on_click=lambda p=path: ui.navigate.to(p),
+            ).props("flat align=left").classes("w-full justify-start")
 
 
 @ui.page("/")

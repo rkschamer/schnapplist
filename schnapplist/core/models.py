@@ -116,7 +116,7 @@ class Item(BaseModel):
         photos: list[Path],
         enhanced_paths: list[Path],
         marketplace: str | None = None,
-    ) -> "Item":
+    ) -> Item:
         """Construct an Item from a raw agent analysis dict and photo paths."""
         photo_models = [
             Photo(original_path=orig, enhanced_path=enh)

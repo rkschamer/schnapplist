@@ -222,7 +222,11 @@ class ProcessWorkflow:
                     filtered_for_agent = list(filtered)
                     _prev: list[RunUsage] = [RunUsage()]
 
-                    def _on_usage(u: RunUsage, _idx: int = idx) -> None:
+                    def _on_usage(
+                        u: RunUsage,
+                        _idx: int = idx,
+                        _prev: list[RunUsage] = _prev,
+                    ) -> None:
                         prev = _prev[0]
                         self._emit(
                             "item_usage",

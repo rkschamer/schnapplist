@@ -36,14 +36,13 @@ def create(state: SessionState) -> None:
 
 def _item_card(item: Item) -> None:
     with ui.card().classes("w-full"):
-        with ui.card_section():
-            with ui.row().classes("items-center justify-between"):
-                ui.label(f"Item #{item.id}").classes("text-xs text-gray-400 font-mono")
-                approved_switch = ui.switch(
-                    "Approved",
-                    value=item.approved,
-                    on_change=lambda e, it=item: setattr(it, "approved", e.value),
-                ).props("color=positive")
+        with ui.card_section(), ui.row().classes("items-center justify-between"):
+            ui.label(f"Item #{item.id}").classes("text-xs text-gray-400 font-mono")
+            ui.switch(
+                "Approved",
+                value=item.approved,
+                on_change=lambda e, it=item: setattr(it, "approved", e.value),
+            ).props("color=positive")
 
         with ui.card_section().classes("gap-4 flex flex-col"):
             # Photos preview

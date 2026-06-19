@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from PIL import Image
@@ -7,19 +9,19 @@ from PIL import Image
 from schnapplist.services.process_service import ProcessWorkflow
 
 
-def _make_mock_client():
+def _make_mock_client() -> MagicMock:
     return MagicMock()
 
 
-def _make_mock_output(name: str = "Test Item", confidence: float = 0.9):
+def _make_mock_output(name: str = "Test Item", confidence: float = 0.9) -> Any:
+    from schnapplist.agents.item_research_agent import ItemResearchOutput
     from schnapplist.core.models import (
         ItemCondition,
+        KaPriceType,
+        KaShipping,
         KleinanzeigenListingOptions,
         PriceInfo,
-        KaShipping,
-        KaPriceType,
     )
-    from schnapplist.agents.item_research_agent import ItemResearchOutput
 
     return ItemResearchOutput(
         name=name,
@@ -44,16 +46,17 @@ def _make_mock_output(name: str = "Test Item", confidence: float = 0.9):
     )
 
 
-def _make_agent_result(output=None):
-    from schnapplist.agents.item_research_agent import AgentResult
+def _make_agent_result(output: Any = None) -> Any:
     from pydantic_ai.usage import RunUsage
+
+    from schnapplist.agents.item_research_agent import AgentResult
 
     if output is None:
         output = _make_mock_output()
     return AgentResult(output=output, usage=RunUsage())
 
 
-def test_pipeline_uses_agent_on_success(tmp_path):
+def test_pipeline_uses_agent_on_success(tmp_path: Path) -> None:
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
     img = Image.new("RGB", (10, 10))
@@ -90,7 +93,7 @@ def test_pipeline_uses_agent_on_success(tmp_path):
     assert result.items[0].name == "Canon EOS"
 
 
-def test_pipeline_calls_decision_callback_on_agent_failure(tmp_path):
+def test_pipeline_calls_decision_callback_on_agent_failure(tmp_path: Path) -> None:
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
     img = Image.new("RGB", (10, 10))
@@ -127,7 +130,7 @@ def test_pipeline_calls_decision_callback_on_agent_failure(tmp_path):
     assert result.items == []
 
 
-def test_pipeline_retries_then_skips(tmp_path):
+def test_pipeline_retries_then_skips(tmp_path: Path) -> None:
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
     img = Image.new("RGB", (10, 10))
@@ -166,10 +169,9 @@ def test_pipeline_retries_then_skips(tmp_path):
     assert result.items == []
 
 
-def test_pipeline_emits_item_usage(tmp_path):
+def test_pipeline_emits_item_usage(tmp_path: Path) -> None:
     """item_usage event is emitted live via on_usage callback during agent run."""
     from pydantic_ai.usage import RunUsage
-    from schnapplist.agents.item_research_agent import AgentResult
 
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
@@ -178,10 +180,18 @@ def test_pipeline_emits_item_usage(tmp_path):
     mock_output = _make_mock_output("Test Item")
     agent_result = _make_agent_result(mock_output)
 
-    events = []
-    progress_cb = lambda event, **kwargs: events.append((event, kwargs))
+    events: list[tuple[str, dict[str, Any]]] = []
 
-    def fake_agent(photos, client, on_stage=None, on_usage=None, **kwargs):
+    def progress_cb(event: str, **kwargs: Any) -> None:
+        events.append((event, kwargs))
+
+    def fake_agent(
+        photos: Any,
+        client: Any,
+        on_stage: Any = None,
+        on_usage: Any = None,
+        **kwargs: Any,
+    ) -> Any:
         # Simulate two mid-run usage callbacks (cumulative) then return
         if on_usage is not None:
             on_usage(
@@ -192,7 +202,6 @@ def test_pipeline_emits_item_usage(tmp_path):
                     requests=1,
                     tool_calls=1,
                 ),
-                0.7,
             )
             on_usage(
                 RunUsage(
@@ -202,7 +211,6 @@ def test_pipeline_emits_item_usage(tmp_path):
                     requests=3,
                     tool_calls=2,
                 ),
-                0.8,
             )
         return agent_result
 
@@ -242,7 +250,7 @@ def test_pipeline_emits_item_usage(tmp_path):
     assert usage_events[1][1]["cache_read_tokens"] == 10
 
 
-def test_pipeline_passes_on_stage_to_agent(tmp_path):
+def test_pipeline_passes_on_stage_to_agent(tmp_path: Path) -> None:
     """on_stage callback is forwarded to run_item_research_agent."""
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
@@ -251,7 +259,7 @@ def test_pipeline_passes_on_stage_to_agent(tmp_path):
     mock_output = _make_mock_output("Test Item")
     captured_kwargs = {}
 
-    def fake_agent(photos, client, **kwargs):
+    def fake_agent(photos: Any, client: Any, **kwargs: Any) -> Any:
         captured_kwargs.update(kwargs)
         return _make_agent_result(mock_output)
 
@@ -283,7 +291,7 @@ def test_pipeline_passes_on_stage_to_agent(tmp_path):
     assert callable(captured_kwargs["on_stage"])
 
 
-def test_pipeline_item_done_includes_low_confidence_false(tmp_path):
+def test_pipeline_item_done_includes_low_confidence_false(tmp_path: Path) -> None:
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
     img = Image.new("RGB", (10, 10))
@@ -291,9 +299,9 @@ def test_pipeline_item_done_includes_low_confidence_false(tmp_path):
 
     mock_output = _make_mock_output("Test Item")  # confidence=0.9 by default
 
-    events = []
+    events: list[tuple[str, dict[str, Any]]] = []
 
-    def _cb(event: str, **kwargs):
+    def _cb(event: str, **kwargs: Any) -> None:
         events.append((event, kwargs))
 
     with (
@@ -327,7 +335,7 @@ def test_pipeline_item_done_includes_low_confidence_false(tmp_path):
     assert done_events[0][1]["confidence"] == 0.9
 
 
-def test_pipeline_item_done_includes_low_confidence_true(tmp_path):
+def test_pipeline_item_done_includes_low_confidence_true(tmp_path: Path) -> None:
     photos_dir = tmp_path / "photos"
     photos_dir.mkdir()
     img = Image.new("RGB", (10, 10))
@@ -335,9 +343,9 @@ def test_pipeline_item_done_includes_low_confidence_true(tmp_path):
 
     mock_output = _make_mock_output("Test Item", confidence=0.4)
 
-    events = []
+    events: list[tuple[str, dict[str, Any]]] = []
 
-    def _cb(event: str, **kwargs):
+    def _cb(event: str, **kwargs: Any) -> None:
         events.append((event, kwargs))
 
     with (

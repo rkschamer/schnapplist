@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from schnapplist.agents.kleinanzeigen_posting import run_mcp_posting
 from schnapplist.core.models import Item
 from schnapplist.providers.base import BaseMarketplace
-from schnapplist.agents.kleinanzeigen_posting import run_mcp_posting
 
 
 class KleinanzeigenMarketplace(BaseMarketplace):

@@ -161,8 +161,10 @@ def _merge_groups_across_batches(groups: list[list[Path]], client: LLMClient) ->
         {
             "type": "text",
             "text": (
-                "Each image is a representative photo of a group. Some groups may show the same item.\n"
-                "Return ONLY a JSON object mapping each group index to the canonical group index it belongs to:\n"
+                "Each image is a representative photo of a group."
+                " Some groups may show the same item.\n"
+                "Return ONLY a JSON object mapping each group index to the canonical group index"
+                " it belongs to:\n"
                 '{"mapping": [0, 0, 2, 3, 3]}\n'
                 "(index position = original group, value = canonical group to merge into)"
             ),
@@ -270,7 +272,7 @@ _FEEDBACK_SYSTEM = (
     "You will see the original photo, then the current enhanced version.\n"
     "Check all four criteria:\n"
     "  1. Item fully visible — nothing cut off at any edge\n"
-    "  2. Text readable — all product text/logos are upright and readable without tilting your head\n"
+    "  2. Text readable — all product text/logos are upright and readable without tilting your head\n"  # noqa: E501
     "  3. Lighting correct — not too dark or blown out\n"
     "  4. Crop appropriate — only empty/background space removed, never the item\n\n"
     'If all criteria are met, return {"accepted": true}.\n'

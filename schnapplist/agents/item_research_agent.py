@@ -19,8 +19,6 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.usage import RunUsage, UsageLimits
 
-log = logging.getLogger(__name__)
-
 from ..config import (
     ANTHROPIC_API_KEY,
     API_IMAGE_MAX_PX,
@@ -37,6 +35,8 @@ from ..core.models import (
     PriceInfo,
 )
 from ..core.web_search import web_search as _ddg_search
+
+log = logging.getLogger(__name__)
 
 JsonDict = dict[str, Any]
 
@@ -188,7 +188,7 @@ def _build_agent(
 
     @agent.tool
     def analyze_photos(ctx: RunContext[_AgentDeps]) -> JsonDict:
-        """Identify the item from photos. Returns name, brand, model, condition, category, keywords."""
+        """Identify the item from photos. Returns name, brand, model, condition, category, keywords."""  # noqa: E501
         log.debug("tool:analyze_photos — start")
         if on_stage is not None:
             on_stage("analyze_photos")
@@ -198,7 +198,7 @@ def _build_agent(
 
     @agent.tool
     def web_search(ctx: RunContext[_AgentDeps], query: str, max_results: int = 8) -> str:
-        """Search the web. Use for spec lookup and price research. Returns newline-separated snippets."""
+        """Search the web. Use for spec lookup and price research. Returns newline-separated snippets."""  # noqa: E501
         log.debug("tool:web_search — start query=%r", query)
         if on_stage is not None:
             on_stage("web_search")

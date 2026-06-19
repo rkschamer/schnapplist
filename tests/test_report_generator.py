@@ -23,7 +23,7 @@ def _make_item(tmp_path: Path, confidence: float) -> Item:
     )
 
 
-def test_report_includes_confidence_row_when_low(tmp_path):
+def test_report_includes_confidence_row_when_low(tmp_path: Path) -> None:
     item = _make_item(tmp_path, confidence=0.5)
     path = write_item_report(item, 1, tmp_path / "run")
     content = path.read_text()
@@ -32,14 +32,14 @@ def test_report_includes_confidence_row_when_low(tmp_path):
     assert "Model uncertain" in content
 
 
-def test_report_no_confidence_row_when_high(tmp_path):
+def test_report_no_confidence_row_when_high(tmp_path: Path) -> None:
     item = _make_item(tmp_path, confidence=0.9)
     path = write_item_report(item, 1, tmp_path / "run")
     content = path.read_text()
     assert "Confidence" not in content
 
 
-def test_report_no_confidence_row_at_exact_threshold(tmp_path):
+def test_report_no_confidence_row_at_exact_threshold(tmp_path: Path) -> None:
     """confidence == target is NOT low-confidence (strict <)."""
     item = _make_item(tmp_path, confidence=AGENT_TARGET_CONFIDENCE)
     path = write_item_report(item, 1, tmp_path / "run")
@@ -47,7 +47,7 @@ def test_report_no_confidence_row_at_exact_threshold(tmp_path):
     assert "Confidence" not in content
 
 
-def test_report_confidence_row_shown_without_price_info(tmp_path):
+def test_report_confidence_row_shown_without_price_info(tmp_path: Path) -> None:
     """Confidence table row appears even when there's no Recherche section."""
     photo = Photo(original_path=tmp_path / "photo.jpg")
     item = Item(

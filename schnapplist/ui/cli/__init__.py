@@ -452,8 +452,8 @@ def export() -> None:
 def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> None:
     """Generate an eBay draft listing CSV for bulk upload."""
     from ...providers.ebay_csv_exporter import export_to_csv
-    from ...services.posting_service import items_from_report_path
     from ...services.item_service import find_latest_report
+    from ...services.posting_service import items_from_report_path
 
     report_path = Path(run_dir) if run_dir else find_latest_report(output_dir)
 

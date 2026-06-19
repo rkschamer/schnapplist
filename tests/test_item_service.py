@@ -36,6 +36,3 @@ def test_list_items_empty_output_dir(tmp_path: Path) -> None:
 def test_list_items_approved_false(output_dir: Path) -> None:
     items = list_items(output_dir)
     assert items[0]["approved"] is False
-
-
-import pytest

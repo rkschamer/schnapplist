@@ -56,7 +56,8 @@ class EbayMarketplace(BaseMarketplace):
         """Post an eBay listing and return the item URL."""
         if not self.is_available():
             raise RuntimeError(
-                "eBay credentials missing. Set EBAY_APP_ID, EBAY_DEV_ID, EBAY_CERT_ID, and EBAY_AUTH_TOKEN in .env"
+                "eBay credentials missing. "
+                "Set EBAY_APP_ID, EBAY_DEV_ID, EBAY_CERT_ID, and EBAY_AUTH_TOKEN in .env"
             )
 
         opts = options or EbayListingOptions()
@@ -193,9 +194,9 @@ def _upload_single_photo(path: Path, endpoint: str) -> str | None:
             f"--{boundary}\r\n"
             f'Content-Disposition: form-data; name="image"; filename="{path.name}"\r\n'
             f"Content-Type: {mime_type}\r\n\r\n"
-        ).encode("utf-8")
+        ).encode()
         + image_data
-        + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        + f"\r\n--{boundary}--\r\n".encode()
     )
 
     headers = _api_headers("UploadSiteHostedPictures")

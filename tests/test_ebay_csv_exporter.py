@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv as _csv
 from pathlib import Path
 
-from schnapplist.providers.ebay_csv_exporter import export_to_csv
 from schnapplist.core.models import (
     EbayListingOptions,
     EbayListingType,
@@ -14,6 +13,7 @@ from schnapplist.core.models import (
 )
 from schnapplist.core.report_generator import write_item_report
 from schnapplist.core.report_parser import parse_report
+from schnapplist.providers.ebay_csv_exporter import export_to_csv
 
 
 def _parse_row(line: str) -> list[str]:

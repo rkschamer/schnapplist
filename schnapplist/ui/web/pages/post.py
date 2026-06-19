@@ -23,7 +23,8 @@ def create(state: SessionState) -> None:
 
         if not approved:
             ui.label(
-                "No approved items. Go back to Review and toggle Approved on the items you want to post."
+                "No approved items. Go back to Review and toggle Approved"
+                " on the items you want to post."
             ).classes("text-gray-500 italic")
             return
 
@@ -96,17 +97,16 @@ async def _post_all(
 
 def _result_card(result: PostResult) -> None:
     with ui.card().classes("w-full"):
-        with ui.card_section():
-            with ui.row().classes("items-center gap-3"):
-                if result.dry_run:
-                    ui.icon("info", color="blue")
-                    ui.label(f"[DRY RUN] {result.item_name}").classes("font-medium")
-                elif result.success:
-                    ui.icon("check_circle", color="green")
-                    ui.label(result.item_name).classes("font-medium text-green-700")
-                else:
-                    ui.icon("error", color="red")
-                    ui.label(result.item_name).classes("font-medium text-red-700")
+        with ui.card_section(), ui.row().classes("items-center gap-3"):
+            if result.dry_run:
+                ui.icon("info", color="blue")
+                ui.label(f"[DRY RUN] {result.item_name}").classes("font-medium")
+            elif result.success:
+                ui.icon("check_circle", color="green")
+                ui.label(result.item_name).classes("font-medium text-green-700")
+            else:
+                ui.icon("error", color="red")
+                ui.label(result.item_name).classes("font-medium text-red-700")
 
         if result.dry_run and result.dry_run_summary:
             with ui.card_section().classes("text-sm text-gray-600 gap-1 flex flex-col"):

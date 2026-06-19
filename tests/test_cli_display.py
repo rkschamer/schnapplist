@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from schnapplist.ui.cli.display import ItemRow, RunState, ToolLogEntry, _render_items
+from pathlib import Path
+
+import pytest
+
+from schnapplist.ui.cli.display import RunState, _render_items
 
 
 def _make_state() -> RunState:
     return RunState()
 
 
-def test_runstate_defaults():
+def test_runstate_defaults() -> None:
     s = _make_state()
     assert s.photo_count == 0
     assert s.total_items == 0
@@ -15,7 +19,7 @@ def test_runstate_defaults():
     assert s.tool_log == []
 
 
-def test_apply_scan_done():
+def test_apply_scan_done() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -24,7 +28,7 @@ def test_apply_scan_done():
     assert s.scan_done is True
 
 
-def test_apply_group_done():
+def test_apply_group_done() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -34,7 +38,7 @@ def test_apply_group_done():
     assert s.group_done is True
 
 
-def test_apply_item_start():
+def test_apply_item_start() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -45,7 +49,7 @@ def test_apply_item_start():
     assert s.active_idx == 1
 
 
-def test_apply_item_stage():
+def test_apply_item_stage() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -57,7 +61,7 @@ def test_apply_item_stage():
     assert s.tool_log[0].tool == "web_search"
 
 
-def test_apply_item_stage_non_tool_does_not_log():
+def test_apply_item_stage_non_tool_does_not_log() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -67,7 +71,7 @@ def test_apply_item_stage_non_tool_does_not_log():
     assert len(s.tool_log) == 0
 
 
-def test_apply_item_done():
+def test_apply_item_done() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -79,7 +83,7 @@ def test_apply_item_done():
     assert s.completed_items == 1
 
 
-def test_apply_item_usage_accumulates():
+def test_apply_item_usage_accumulates() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -110,7 +114,7 @@ def test_apply_item_usage_accumulates():
     # tool_calls is now counted from item_stage events, not item_usage
 
 
-def test_tool_calls_counted_from_item_stage():
+def test_tool_calls_counted_from_item_stage() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -123,7 +127,7 @@ def test_tool_calls_counted_from_item_stage():
     assert s.tool_calls == 3
 
 
-def test_tool_log_capped_at_five():
+def test_tool_log_capped_at_five() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     s = _make_state()
@@ -134,9 +138,10 @@ def test_tool_log_capped_at_five():
     assert len(s.tool_log) == 5
 
 
-def test_render_header_returns_renderable():
-    from schnapplist.ui.cli.display import _render_header
+def test_render_header_returns_renderable() -> None:
     from rich.console import Console
+
+    from schnapplist.ui.cli.display import _render_header
 
     s = _make_state()
     renderable = _render_header(s)
@@ -145,9 +150,10 @@ def test_render_header_returns_renderable():
         console.print(renderable)
 
 
-def test_render_items_returns_renderable():
-    from schnapplist.ui.cli.display import _render_items, apply_event
+def test_render_items_returns_renderable() -> None:
     from rich.console import Console
+
+    from schnapplist.ui.cli.display import _render_items, apply_event
 
     s = _make_state()
     apply_event(s, "group_done", count=2)
@@ -160,9 +166,10 @@ def test_render_items_returns_renderable():
         console.print(renderable)
 
 
-def test_render_llm_returns_renderable():
-    from schnapplist.ui.cli.display import _render_llm, apply_event
+def test_render_llm_returns_renderable() -> None:
     from rich.console import Console
+
+    from schnapplist.ui.cli.display import _render_llm, apply_event
 
     s = _make_state()
     apply_event(
@@ -181,7 +188,7 @@ def test_render_llm_returns_renderable():
         console.print(renderable)
 
 
-def test_item_done_low_confidence_sets_flag():
+def test_item_done_low_confidence_sets_flag() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     state = RunState()
@@ -199,7 +206,7 @@ def test_item_done_low_confidence_sets_flag():
     assert state.items[1].confidence == 0.55
 
 
-def test_item_done_high_confidence_no_flag():
+def test_item_done_high_confidence_no_flag() -> None:
     from schnapplist.ui.cli.display import apply_event
 
     state = RunState()
@@ -216,9 +223,10 @@ def test_item_done_high_confidence_no_flag():
     assert state.items[1].low_confidence is False
 
 
-def test_render_items_low_confidence_shows_warning_icon():
-    from schnapplist.ui.cli.display import apply_event
+def test_render_items_low_confidence_shows_warning_icon() -> None:
     from rich.console import Console
+
+    from schnapplist.ui.cli.display import apply_event
 
     state = RunState()
     apply_event(state, "item_start", idx=1, total=1)
@@ -240,8 +248,9 @@ def test_render_items_low_confidence_shows_warning_icon():
     assert "0.55" in rendered
 
 
-
-def test_decision_cb_report_ready_returns_empty_string(tmp_path, monkeypatch):
+def test_decision_cb_report_ready_returns_empty_string(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """report_ready shows a modal and returns '' after a keypress."""
     from schnapplist.ui.cli.display import RichDecisionCallback, RichLiveCallback
 
@@ -266,7 +275,7 @@ def test_decision_cb_report_ready_returns_empty_string(tmp_path, monkeypatch):
     assert len(restored) == 1  # restore_body was called (terminal cleanup)
 
 
-def test_decision_cb_ebay_export_prompt_yes(monkeypatch):
+def test_decision_cb_ebay_export_prompt_yes(monkeypatch: pytest.MonkeyPatch) -> None:
     """ebay_export_prompt returns 'yes' when user presses y."""
     from schnapplist.ui.cli.display import RichDecisionCallback, RichLiveCallback
 
@@ -286,7 +295,7 @@ def test_decision_cb_ebay_export_prompt_yes(monkeypatch):
     assert len(restored) == 1
 
 
-def test_decision_cb_ebay_export_prompt_no(monkeypatch):
+def test_decision_cb_ebay_export_prompt_no(monkeypatch: pytest.MonkeyPatch) -> None:
     """ebay_export_prompt returns 'no' when user presses n."""
     from schnapplist.ui.cli.display import RichDecisionCallback, RichLiveCallback
 

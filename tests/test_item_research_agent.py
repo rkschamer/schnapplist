@@ -1,19 +1,21 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from PIL import Image
+from pydantic_ai.usage import RunUsage
 
-from schnapplist.core.models import ItemCondition, KleinanzeigenListingOptions, PriceInfo
 from schnapplist.agents.item_research_agent import (
     ItemResearchOutput,
     _analyze_photos_impl,
     run_item_research_agent,
 )
+from schnapplist.core.models import ItemCondition, KleinanzeigenListingOptions, PriceInfo
 
 
-def test_item_research_output_round_trips():
+def test_item_research_output_round_trips() -> None:
     output = ItemResearchOutput(
         name="Sony WH-1000XM5",
         brand="Sony",
@@ -39,7 +41,7 @@ def test_item_research_output_round_trips():
     assert output.ka_options is not None
 
 
-def test_item_research_output_minimal():
+def test_item_research_output_minimal() -> None:
     """ka_options and ebay_options can both be None."""
     output = ItemResearchOutput(
         name="Unknown",
@@ -93,7 +95,7 @@ def test_analyze_photos_returns_identification(tmp_path: Path) -> None:
     mock_client.messages_create.assert_called_once()
 
 
-def test_run_item_research_agent_returns_output(tmp_path):
+def test_run_item_research_agent_returns_output(tmp_path: Path) -> None:
     img = Image.new("RGB", (1, 1))
     photo = tmp_path / "item.jpg"
     img.save(photo, "JPEG")
@@ -107,21 +109,19 @@ def test_run_item_research_agent_returns_output(tmp_path):
         from contextlib import asynccontextmanager
 
         @asynccontextmanager
-        async def _fake_iter(*args, **kwargs):
+        async def _fake_iter(*args: object, **kwargs: object) -> AsyncIterator[object]:
             class _FakeRun:
                 class result:
                     output = mock_output
 
                     @staticmethod
-                    def usage():
-                        from pydantic_ai.usage import RunUsage
-
+                    def usage() -> RunUsage:
                         return RunUsage()
 
-                def __aiter__(self):
+                def __aiter__(self) -> _FakeRun:
                     return self
 
-                async def __anext__(self):
+                async def __anext__(self) -> None:
                     raise StopAsyncIteration
 
             yield _FakeRun()
@@ -135,9 +135,9 @@ def test_run_item_research_agent_returns_output(tmp_path):
     assert result.output.name == "Canon EOS 400D"
 
 
-def test_on_stage_fires_when_tools_called(tmp_path):
+def test_on_stage_fires_when_tools_called(tmp_path: Path) -> None:
     """on_stage is called with the correct tool name when each tool executes."""
-    from schnapplist.agents.item_research_agent import _build_agent, _AgentDeps
+    from schnapplist.agents.item_research_agent import _AgentDeps, _build_agent
 
     on_stage = MagicMock()
     mock_client = MagicMock()
@@ -169,7 +169,7 @@ def test_on_stage_fires_when_tools_called(tmp_path):
     on_stage.assert_any_call("web_search")
 
 
-def test_item_research_output_has_confidence_fields():
+def test_item_research_output_has_confidence_fields() -> None:
     from schnapplist.core.models import ItemCondition, PriceInfo
 
     output = ItemResearchOutput(
