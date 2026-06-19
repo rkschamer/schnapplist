@@ -139,8 +139,9 @@ Your job:
 2. Call web_search to look up the exact manufacturer specifications for the identified model.
 3. Call web_search to find current prices on kleinanzeigen.de and ebay.de.
 4. After each web_search, ask yourself: do I have brand, model, at least one verified \
-spec, and a price signal? If yes and your confidence would be >= {target_confidence:.2f}, \
-produce your final structured output immediately — do not search further.
+spec, and a price signal (even from comparable items)? If yes and your confidence would \
+be >= {target_confidence:.2f}, produce your final structured output immediately — do not \
+search further.
 5. If any spec or price is still unclear, call web_search again with a refined query.
 
 Rules:
@@ -153,10 +154,21 @@ Rules:
 - For ebay_category_id: provide the numeric eBay Germany category ID that best fits \
 the item (e.g. "293" for Bücher, "9355" for Kleidung, "58058" for Kopfhörer). \
 If unsure, set to null.
+- price_info must always be a JSON object, never a JSON-encoded string.
+
+Pricing rules:
+- Run at most 3 web searches for price data. After 3 price searches, stop and use \
+whatever price signal you have.
+- If you only find prices for comparable items (same brand/type, different capacity or \
+variant), use those to estimate proportionally and note it in price_info.reasoning. \
+Do not keep searching for an exact match.
+- Use queries that surface actual prices in snippets, e.g.: \
+  "BRAND MODEL" "€" site:kleinanzeigen.de OR site:ebay.de
 
 Confidence rating — set when producing your final output:
 - 1.0: brand, model, full spec sheet, and multiple price sources confirmed
 - 0.8: brand + model confirmed, key specs verified, one price source
+- 0.7: brand + model confirmed, key specs verified, price estimated from comparable items
 - 0.6: brand or model uncertain, specs partially verified
 - 0.4: identification is a best guess, little verification possible
 Set confidence_notes to one sentence describing what was uncertain \
