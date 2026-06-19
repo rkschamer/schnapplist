@@ -18,6 +18,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from ...config import CLAUDE_MODEL, LLM_PROVIDER, OLLAMA_HOST, OLLAMA_MODEL
+
 console = Console()
 
 _TOOL_STAGES = {"analyze_photos", "web_search"}
@@ -156,12 +158,19 @@ def _render_header(state: RunState) -> Panel:
     else:
         overall_text = f"[dim]Overall  —  {elapsed_str}[/dim]"
 
+    if LLM_PROVIDER == "ollama":
+        backend_text = f"[dim]ollama  {OLLAMA_MODEL}  {OLLAMA_HOST}[/dim]"
+    else:
+        backend_text = f"[dim]anthropic  {CLAUDE_MODEL}[/dim]"
+
     content = Text.assemble(
         Text.from_markup(scan_text),
         "    ",
         Text.from_markup(group_text),
         "    ",
         Text.from_markup(overall_text),
+        "    ",
+        Text.from_markup(backend_text),
     )
     return Panel(content, title="[bold blue]Schnapplist[/bold blue]", height=3)
 
