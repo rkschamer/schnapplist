@@ -222,7 +222,7 @@ class ProcessWorkflow:
                     filtered_for_agent = list(filtered)
                     _prev: list[RunUsage] = [RunUsage()]
 
-                    def _on_usage(u: RunUsage, gen_secs: float, _idx: int = idx) -> None:
+                    def _on_usage(u: RunUsage, _idx: int = idx) -> None:
                         prev = _prev[0]
                         self._emit(
                             "item_usage",
@@ -232,7 +232,6 @@ class ProcessWorkflow:
                             cache_read_tokens=u.cache_read_tokens - prev.cache_read_tokens,
                             requests=u.requests - prev.requests,
                             tool_calls=u.tool_calls - prev.tool_calls,
-                            gen_secs=gen_secs,
                         )
                         _prev[0] = u
 

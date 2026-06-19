@@ -215,7 +215,7 @@ def run_item_research_agent(
     photos: list[Path],
     client: LLMClient,
     on_stage: Callable[[str], None] | None = None,
-    on_usage: Callable[[RunUsage, float], None] | None = None,
+    on_usage: Callable[[RunUsage], None] | None = None,
     *,
     max_iterations: int = 10,
     target_confidence: float = 0.8,
@@ -227,7 +227,6 @@ def run_item_research_agent(
     async def _run() -> AgentResult:
         from pydantic_ai._agent_graph import CallToolsNode, ModelRequestNode  # noqa: PLC0415
 
-        request_start: float | None = None
         log.debug("agent:run — starting iter loop")
         async with agent.iter(
             "Research this item and produce a verified listing.",
@@ -238,26 +237,18 @@ def run_item_research_agent(
                 node_type = type(node).__name__
                 log.debug("agent:node — %s", node_type)
                 if isinstance(node, ModelRequestNode):
-                    request_start = asyncio.get_event_loop().time()
                     log.debug("agent:model_request — waiting for LLM response")
                 elif isinstance(node, CallToolsNode):
-                    gen_secs = (
-                        (asyncio.get_event_loop().time() - request_start)
-                        if request_start is not None
-                        else 0.0
-                    )
-                    request_start = None
                     usage = run.usage()
                     log.debug(
-                        "agent:call_tools — requests=%d tool_calls=%d in=%d out=%d gen_secs=%.1f",
+                        "agent:call_tools — requests=%d tool_calls=%d in=%d out=%d",
                         usage.requests,
                         usage.tool_calls,
                         usage.input_tokens,
                         usage.output_tokens,
-                        gen_secs,
                     )
                     if on_usage is not None:
-                        on_usage(usage, gen_secs)
+                        on_usage(usage)
         log.debug("agent:run — iter loop finished")
         return AgentResult(output=run.result.output, usage=run.result.usage())
 

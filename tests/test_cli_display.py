@@ -240,35 +240,6 @@ def test_render_items_low_confidence_shows_warning_icon():
     assert "0.55" in rendered
 
 
-def test_toks_uses_gen_secs():
-    """tok/s uses accumulated generation time, not wall-clock elapsed."""
-    from schnapplist.ui.cli.display import _render_llm, apply_event
-    from rich.console import Console
-
-    s = _make_state()
-    # Simulate a usage event with explicit gen_secs
-    apply_event(
-        s,
-        "item_usage",
-        idx=1,
-        input_tokens=100,
-        output_tokens=200,
-        cache_read_tokens=0,
-        requests=2,
-        tool_calls=1,
-        gen_secs=5.0,
-    )
-    assert s.gen_secs == 5.0
-
-    renderable = _render_llm(s)
-    console = Console(force_terminal=True, width=40)
-    with console.capture() as cap:
-        console.print(renderable)
-    output = cap.get()
-    assert "tok/s" in output
-    # 200 tokens / 5.0s = 40.0 tok/s
-    assert "40.0" in output
-
 
 def test_decision_cb_report_ready_returns_empty_string(tmp_path, monkeypatch):
     """report_ready shows a modal and returns '' after a keypress."""
