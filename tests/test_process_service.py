@@ -13,10 +13,14 @@ def _make_mock_client():
 
 def _make_mock_output(name: str = "Test Item", confidence: float = 0.9):
     from schnapplist.core.models import (
-        ItemCondition, KleinanzeigenListingOptions, PriceInfo,
-        KaShipping, KaPriceType,
+        ItemCondition,
+        KleinanzeigenListingOptions,
+        PriceInfo,
+        KaShipping,
+        KaPriceType,
     )
     from schnapplist.agents.item_research_agent import ItemResearchOutput
+
     return ItemResearchOutput(
         name=name,
         brand="TestBrand",
@@ -43,6 +47,7 @@ def _make_mock_output(name: str = "Test Item", confidence: float = 0.9):
 def _make_agent_result(output=None):
     from schnapplist.agents.item_research_agent import AgentResult
     from pydantic_ai.usage import RunUsage
+
     if output is None:
         output = _make_mock_output()
     return AgentResult(output=output, usage=RunUsage())
@@ -57,10 +62,22 @@ def test_pipeline_uses_agent_on_success(tmp_path):
     mock_output = _make_mock_output("Canon EOS")
 
     with (
-        patch("schnapplist.services.process_service.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
-        patch("schnapplist.services.process_service.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
-        patch("schnapplist.services.process_service.enhance_photo", return_value=photos_dir / "item.jpg"),
-        patch("schnapplist.services.process_service.run_item_research_agent", return_value=_make_agent_result(mock_output)),
+        patch(
+            "schnapplist.services.process_service.group_photos_by_item",
+            return_value=[[photos_dir / "item.jpg"]],
+        ),
+        patch(
+            "schnapplist.services.process_service.filter_redundant_photos",
+            return_value=[photos_dir / "item.jpg"],
+        ),
+        patch(
+            "schnapplist.services.process_service.enhance_photo",
+            return_value=photos_dir / "item.jpg",
+        ),
+        patch(
+            "schnapplist.services.process_service.run_item_research_agent",
+            return_value=_make_agent_result(mock_output),
+        ),
         patch("schnapplist.services.process_service.write_item_report"),
     ):
         result = ProcessWorkflow(_make_mock_client()).run(
@@ -82,10 +99,22 @@ def test_pipeline_calls_decision_callback_on_agent_failure(tmp_path):
     decision_cb = MagicMock(return_value="skip")
 
     with (
-        patch("schnapplist.services.process_service.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
-        patch("schnapplist.services.process_service.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
-        patch("schnapplist.services.process_service.enhance_photo", return_value=photos_dir / "item.jpg"),
-        patch("schnapplist.services.process_service.run_item_research_agent", side_effect=RuntimeError("LLM error")),
+        patch(
+            "schnapplist.services.process_service.group_photos_by_item",
+            return_value=[[photos_dir / "item.jpg"]],
+        ),
+        patch(
+            "schnapplist.services.process_service.filter_redundant_photos",
+            return_value=[photos_dir / "item.jpg"],
+        ),
+        patch(
+            "schnapplist.services.process_service.enhance_photo",
+            return_value=photos_dir / "item.jpg",
+        ),
+        patch(
+            "schnapplist.services.process_service.run_item_research_agent",
+            side_effect=RuntimeError("LLM error"),
+        ),
         patch("schnapplist.services.process_service.write_item_report"),
     ):
         result = ProcessWorkflow(_make_mock_client(), on_decision=decision_cb).run(
@@ -108,10 +137,22 @@ def test_pipeline_retries_then_skips(tmp_path):
     decision_cb = MagicMock(return_value="retry")
 
     with (
-        patch("schnapplist.services.process_service.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
-        patch("schnapplist.services.process_service.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
-        patch("schnapplist.services.process_service.enhance_photo", return_value=photos_dir / "item.jpg"),
-        patch("schnapplist.services.process_service.run_item_research_agent", side_effect=RuntimeError("LLM error")),
+        patch(
+            "schnapplist.services.process_service.group_photos_by_item",
+            return_value=[[photos_dir / "item.jpg"]],
+        ),
+        patch(
+            "schnapplist.services.process_service.filter_redundant_photos",
+            return_value=[photos_dir / "item.jpg"],
+        ),
+        patch(
+            "schnapplist.services.process_service.enhance_photo",
+            return_value=photos_dir / "item.jpg",
+        ),
+        patch(
+            "schnapplist.services.process_service.run_item_research_agent",
+            side_effect=RuntimeError("LLM error"),
+        ),
         patch("schnapplist.services.process_service.write_item_report"),
     ):
         result = ProcessWorkflow(_make_mock_client(), on_decision=decision_cb).run(
@@ -143,15 +184,44 @@ def test_pipeline_emits_item_usage(tmp_path):
     def fake_agent(photos, client, on_stage=None, on_usage=None, **kwargs):
         # Simulate two mid-run usage callbacks (cumulative) then return
         if on_usage is not None:
-            on_usage(RunUsage(input_tokens=50, output_tokens=25, cache_read_tokens=10, requests=1, tool_calls=1), 0.7)
-            on_usage(RunUsage(input_tokens=100, output_tokens=50, cache_read_tokens=20, requests=3, tool_calls=2), 0.8)
+            on_usage(
+                RunUsage(
+                    input_tokens=50,
+                    output_tokens=25,
+                    cache_read_tokens=10,
+                    requests=1,
+                    tool_calls=1,
+                ),
+                0.7,
+            )
+            on_usage(
+                RunUsage(
+                    input_tokens=100,
+                    output_tokens=50,
+                    cache_read_tokens=20,
+                    requests=3,
+                    tool_calls=2,
+                ),
+                0.8,
+            )
         return agent_result
 
     with (
-        patch("schnapplist.services.process_service.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
-        patch("schnapplist.services.process_service.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
-        patch("schnapplist.services.process_service.enhance_photo", return_value=photos_dir / "item.jpg"),
-        patch("schnapplist.services.process_service.run_item_research_agent", side_effect=fake_agent),
+        patch(
+            "schnapplist.services.process_service.group_photos_by_item",
+            return_value=[[photos_dir / "item.jpg"]],
+        ),
+        patch(
+            "schnapplist.services.process_service.filter_redundant_photos",
+            return_value=[photos_dir / "item.jpg"],
+        ),
+        patch(
+            "schnapplist.services.process_service.enhance_photo",
+            return_value=photos_dir / "item.jpg",
+        ),
+        patch(
+            "schnapplist.services.process_service.run_item_research_agent", side_effect=fake_agent
+        ),
         patch("schnapplist.services.process_service.write_item_report"),
     ):
         ProcessWorkflow(MagicMock(), on_progress=progress_cb).run(
@@ -186,10 +256,21 @@ def test_pipeline_passes_on_stage_to_agent(tmp_path):
         return _make_agent_result(mock_output)
 
     with (
-        patch("schnapplist.services.process_service.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
-        patch("schnapplist.services.process_service.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
-        patch("schnapplist.services.process_service.enhance_photo", return_value=photos_dir / "item.jpg"),
-        patch("schnapplist.services.process_service.run_item_research_agent", side_effect=fake_agent),
+        patch(
+            "schnapplist.services.process_service.group_photos_by_item",
+            return_value=[[photos_dir / "item.jpg"]],
+        ),
+        patch(
+            "schnapplist.services.process_service.filter_redundant_photos",
+            return_value=[photos_dir / "item.jpg"],
+        ),
+        patch(
+            "schnapplist.services.process_service.enhance_photo",
+            return_value=photos_dir / "item.jpg",
+        ),
+        patch(
+            "schnapplist.services.process_service.run_item_research_agent", side_effect=fake_agent
+        ),
         patch("schnapplist.services.process_service.write_item_report"),
     ):
         ProcessWorkflow(MagicMock()).run(
@@ -216,10 +297,22 @@ def test_pipeline_item_done_includes_low_confidence_false(tmp_path):
         events.append((event, kwargs))
 
     with (
-        patch("schnapplist.services.process_service.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
-        patch("schnapplist.services.process_service.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
-        patch("schnapplist.services.process_service.enhance_photo", return_value=photos_dir / "item.jpg"),
-        patch("schnapplist.services.process_service.run_item_research_agent", return_value=MagicMock(output=mock_output, usage=MagicMock())),
+        patch(
+            "schnapplist.services.process_service.group_photos_by_item",
+            return_value=[[photos_dir / "item.jpg"]],
+        ),
+        patch(
+            "schnapplist.services.process_service.filter_redundant_photos",
+            return_value=[photos_dir / "item.jpg"],
+        ),
+        patch(
+            "schnapplist.services.process_service.enhance_photo",
+            return_value=photos_dir / "item.jpg",
+        ),
+        patch(
+            "schnapplist.services.process_service.run_item_research_agent",
+            return_value=MagicMock(output=mock_output, usage=MagicMock()),
+        ),
         patch("schnapplist.services.process_service.write_item_report"),
     ):
         ProcessWorkflow(_make_mock_client(), on_progress=_cb).run(
@@ -248,10 +341,22 @@ def test_pipeline_item_done_includes_low_confidence_true(tmp_path):
         events.append((event, kwargs))
 
     with (
-        patch("schnapplist.services.process_service.group_photos_by_item", return_value=[[photos_dir / "item.jpg"]]),
-        patch("schnapplist.services.process_service.filter_redundant_photos", return_value=[photos_dir / "item.jpg"]),
-        patch("schnapplist.services.process_service.enhance_photo", return_value=photos_dir / "item.jpg"),
-        patch("schnapplist.services.process_service.run_item_research_agent", return_value=MagicMock(output=mock_output, usage=MagicMock())),
+        patch(
+            "schnapplist.services.process_service.group_photos_by_item",
+            return_value=[[photos_dir / "item.jpg"]],
+        ),
+        patch(
+            "schnapplist.services.process_service.filter_redundant_photos",
+            return_value=[photos_dir / "item.jpg"],
+        ),
+        patch(
+            "schnapplist.services.process_service.enhance_photo",
+            return_value=photos_dir / "item.jpg",
+        ),
+        patch(
+            "schnapplist.services.process_service.run_item_research_agent",
+            return_value=MagicMock(output=mock_output, usage=MagicMock()),
+        ),
         patch("schnapplist.services.process_service.write_item_report"),
     ):
         ProcessWorkflow(_make_mock_client(), on_progress=_cb).run(

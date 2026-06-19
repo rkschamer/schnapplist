@@ -17,7 +17,9 @@ def _make_item(tmp_path: Path, confidence: float) -> Item:
         photos=[photo],
         price_info=PriceInfo(suggested_price=10.0, min_price=8.0, max_price=12.0, reasoning="test"),
         confidence=confidence,
-        confidence_notes="Model uncertain" if confidence < AGENT_TARGET_CONFIDENCE else "Fully verified",
+        confidence_notes="Model uncertain"
+        if confidence < AGENT_TARGET_CONFIDENCE
+        else "Fully verified",
     )
 
 

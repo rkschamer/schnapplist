@@ -13,12 +13,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-log = logging.getLogger(__name__)
-
 from PIL import Image
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.instrumented import InstrumentationSettings
 from pydantic_ai.usage import RunUsage, UsageLimits
+
+log = logging.getLogger(__name__)
 
 from ..config import (
     ANTHROPIC_API_KEY,
@@ -55,8 +56,8 @@ class ItemResearchOutput(BaseModel):
     price_info: PriceInfo
     ka_options: KleinanzeigenListingOptions | None
     ebay_options: EbayListingOptions | None
-    confidence: float = 0.5           # 0.0–1.0, agent self-rated
-    confidence_notes: str = ""        # one sentence explaining the rating
+    confidence: float = 0.5  # 0.0–1.0, agent self-rated
+    confidence_notes: str = ""  # one sentence explaining the rating
 
 
 @dataclass
@@ -106,10 +107,12 @@ def _analyze_photos_impl(photos: list[Path], client: LLMClient) -> JsonDict:
     content: list[JsonDict] = []
     for photo in photos:
         data, media_type = _encode_photo(photo)
-        content.append({
-            "type": "image",
-            "source": {"type": "base64", "media_type": media_type, "data": data},
-        })
+        content.append(
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type, "data": data},
+            }
+        )
     content.append({"type": "text", "text": _ANALYZE_PROMPT})
 
     response = client.messages_create(
@@ -125,6 +128,7 @@ def _analyze_photos_impl(photos: list[Path], client: LLMClient) -> JsonDict:
 # ---------------------------------------------------------------------------
 # Agent
 # ---------------------------------------------------------------------------
+
 
 def _build_system_prompt(target_confidence: float) -> str:
     return f"""\
@@ -179,6 +183,7 @@ def _build_agent(
         deps_type=_AgentDeps,
         system_prompt=_build_system_prompt(target_confidence),
         retries=2,
+        instrument=InstrumentationSettings(include_content=True),
     )
 
     @agent.tool
@@ -201,10 +206,7 @@ def _build_agent(
         log.debug("tool:web_search — done, %d results", len(results))
         if not results:
             return "No results found."
-        return "\n".join(
-            f"- {r['title']}: {r['body'][:200]}"
-            for r in results
-        )
+        return "\n".join(f"- {r['title']}: {r['body'][:200]}" for r in results)
 
     return agent
 
@@ -224,6 +226,7 @@ def run_item_research_agent(
 
     async def _run() -> AgentResult:
         from pydantic_ai._agent_graph import CallToolsNode, ModelRequestNode  # noqa: PLC0415
+
         request_start: float | None = None
         log.debug("agent:run — starting iter loop")
         async with agent.iter(
@@ -238,12 +241,20 @@ def run_item_research_agent(
                     request_start = asyncio.get_event_loop().time()
                     log.debug("agent:model_request — waiting for LLM response")
                 elif isinstance(node, CallToolsNode):
-                    gen_secs = (asyncio.get_event_loop().time() - request_start) if request_start is not None else 0.0
+                    gen_secs = (
+                        (asyncio.get_event_loop().time() - request_start)
+                        if request_start is not None
+                        else 0.0
+                    )
                     request_start = None
                     usage = run.usage()
                     log.debug(
                         "agent:call_tools — requests=%d tool_calls=%d in=%d out=%d gen_secs=%.1f",
-                        usage.requests, usage.tool_calls, usage.input_tokens, usage.output_tokens, gen_secs,
+                        usage.requests,
+                        usage.tool_calls,
+                        usage.input_tokens,
+                        usage.output_tokens,
+                        gen_secs,
                     )
                     if on_usage is not None:
                         on_usage(usage, gen_secs)

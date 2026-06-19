@@ -18,6 +18,7 @@ from typing import Any
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def parse_report(report_path: Path) -> list[dict[str, Any]]:
     """Return a list of partial item dicts parsed from *report_path*.
 
@@ -48,6 +49,7 @@ def parse_report(report_path: Path) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _parse_item_section(section: str) -> dict[str, Any] | None:
     """Parse one item section and return a partial diff dict, or None."""
@@ -109,9 +111,7 @@ def _parse_table_fields(table: dict[str, str]) -> dict[str, Any]:
     m_price = re.search(r"(\d[\d ]*[.,]\d{2})", price_cell.replace(" ", " "))
     if m_price:
         with contextlib.suppress(ValueError):
-            out["suggested_price"] = float(
-                m_price.group(1).replace(",", ".").replace(" ", "")
-            )
+            out["suggested_price"] = float(m_price.group(1).replace(",", ".").replace(" ", ""))
 
     mkt = table.get("Marketplace", "").strip().lower()
     if mkt in ("ebay", "kleinanzeigen"):

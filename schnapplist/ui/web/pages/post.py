@@ -15,8 +15,9 @@ def create(state: SessionState) -> None:
     with ui.column().classes("w-full max-w-3xl mx-auto gap-6 p-6"):
         with ui.row().classes("items-center justify-between w-full"):
             ui.label("Post Items").classes("text-3xl font-bold text-primary")
-            ui.button("Back to Review", icon="arrow_back",
-                      on_click=lambda: ui.navigate.to("/review")).props("flat")
+            ui.button(
+                "Back to Review", icon="arrow_back", on_click=lambda: ui.navigate.to("/review")
+            ).props("flat")
 
         approved = [it for it in state.items if it.approved]
 
@@ -42,9 +43,7 @@ def create(state: SessionState) -> None:
                     with ui.row().classes("items-center gap-4 w-full"):
                         ui.label(item.title_de or item.name).classes("flex-1 text-sm font-medium")
                         price = (
-                            f"{item.price_info.suggested_price:.2f} EUR"
-                            if item.price_info
-                            else "—"
+                            f"{item.price_info.suggested_price:.2f} EUR" if item.price_info else "—"
                         )
                         ui.label(price).classes("text-sm text-gray-500 w-24 text-right")
                         ui.select(
@@ -55,13 +54,19 @@ def create(state: SessionState) -> None:
 
         dry_run_toggle = ui.switch("Dry run (no actual posting)", value=False)
 
-        post_btn = ui.button(
-            "Post All",
-            icon="send",
-            on_click=lambda: asyncio.ensure_future(
-                _post_all(approved, overrides, dry_run_toggle.value, results_container, post_btn)
-            ),
-        ).props("color=primary size=lg").classes("w-full")
+        post_btn = (
+            ui.button(
+                "Post All",
+                icon="send",
+                on_click=lambda: asyncio.ensure_future(
+                    _post_all(
+                        approved, overrides, dry_run_toggle.value, results_container, post_btn
+                    )
+                ),
+            )
+            .props("color=primary size=lg")
+            .classes("w-full")
+        )
 
 
 async def _post_all(

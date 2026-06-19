@@ -26,9 +26,7 @@ def create(state: SessionState) -> None:
                 ).props("color=primary")
 
         if not state.items:
-            ui.label("No items to review. Run processing first.").classes(
-                "text-gray-500 italic"
-            )
+            ui.label("No items to review. Run processing first.").classes("text-gray-500 italic")
             ui.button("Back to Home", on_click=lambda: ui.navigate.to("/")).props("flat")
             return
 
@@ -54,9 +52,7 @@ def _item_card(item: Item) -> None:
                     for photo in item.photos[:6]:
                         path = photo.display_path
                         if path.exists():
-                            ui.image(str(path)).classes(
-                                "w-24 h-24 object-cover rounded shadow"
-                            )
+                            ui.image(str(path)).classes("w-24 h-24 object-cover rounded shadow")
 
             # Editable fields
             with ui.grid(columns=2).classes("w-full gap-4"):
@@ -68,18 +64,14 @@ def _item_card(item: Item) -> None:
                     ).classes("w-full")
 
                 with ui.column():
-                    ui.label("Title (DE)").classes(
-                        "text-xs font-semibold text-gray-500 uppercase"
-                    )
+                    ui.label("Title (DE)").classes("text-xs font-semibold text-gray-500 uppercase")
                     ui.input(
                         value=item.title_de,
                         on_change=lambda e, it=item: setattr(it, "title_de", e.value),
                     ).classes("w-full")
 
                 with ui.column():
-                    ui.label("Condition").classes(
-                        "text-xs font-semibold text-gray-500 uppercase"
-                    )
+                    ui.label("Condition").classes("text-xs font-semibold text-gray-500 uppercase")
                     ui.select(
                         options=_CONDITIONS,
                         value=item.condition.value,
@@ -89,12 +81,8 @@ def _item_card(item: Item) -> None:
                     ).classes("w-full")
 
                 with ui.column():
-                    ui.label("Price (EUR)").classes(
-                        "text-xs font-semibold text-gray-500 uppercase"
-                    )
-                    price_val = (
-                        item.price_info.suggested_price if item.price_info else 0.0
-                    )
+                    ui.label("Price (EUR)").classes("text-xs font-semibold text-gray-500 uppercase")
+                    price_val = item.price_info.suggested_price if item.price_info else 0.0
 
                     def _update_price(e: object, it: Item = item) -> None:
                         try:

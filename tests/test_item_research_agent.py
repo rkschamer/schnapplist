@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, patch
 from PIL import Image
 
 from schnapplist.core.models import ItemCondition, KleinanzeigenListingOptions, PriceInfo
-from schnapplist.agents.item_research_agent import ItemResearchOutput, _analyze_photos_impl, run_item_research_agent
+from schnapplist.agents.item_research_agent import (
+    ItemResearchOutput,
+    _analyze_photos_impl,
+    run_item_research_agent,
+)
 
 
 def test_item_research_output_round_trips():
@@ -69,11 +73,15 @@ def test_analyze_photos_returns_identification(tmp_path: Path) -> None:
 
     mock_client = MagicMock()
     mock_client.messages_create.return_value = MagicMock(
-        content=[MagicMock(text='{"name": "Sony WH-1000XM5", "brand": "Sony", '
-                                '"model": "WH-1000XM5", "condition": "good", '
-                                '"condition_notes": "light wear", '
-                                '"category": "Electronics", '
-                                '"keywords": ["Sony", "Headphones"]}')]
+        content=[
+            MagicMock(
+                text='{"name": "Sony WH-1000XM5", "brand": "Sony", '
+                '"model": "WH-1000XM5", "condition": "good", '
+                '"condition_notes": "light wear", '
+                '"category": "Electronics", '
+                '"keywords": ["Sony", "Headphones"]}'
+            )
+        ]
     )
 
     result = _analyze_photos_impl([photo], mock_client)
@@ -91,6 +99,7 @@ def test_run_item_research_agent_returns_output(tmp_path):
     img.save(photo, "JPEG")
 
     from tests.test_process_service import _make_mock_output
+
     mock_output = _make_mock_output("Canon EOS 400D")
     mock_client = MagicMock()
 
@@ -102,9 +111,11 @@ def test_run_item_research_agent_returns_output(tmp_path):
             class _FakeRun:
                 class result:
                     output = mock_output
+
                     @staticmethod
                     def usage():
                         from pydantic_ai.usage import RunUsage
+
                         return RunUsage()
 
                 def __aiter__(self):
@@ -145,7 +156,9 @@ def test_on_stage_fires_when_tools_called(tmp_path):
     analyze_fn = agent._function_toolset.tools["analyze_photos"].function
     web_search_fn = agent._function_toolset.tools["web_search"].function
 
-    with patch("schnapplist.agents.item_research_agent._analyze_photos_impl", return_value={"name": "X"}):
+    with patch(
+        "schnapplist.agents.item_research_agent._analyze_photos_impl", return_value={"name": "X"}
+    ):
         analyze_fn(ctx)
 
     with patch("schnapplist.agents.item_research_agent._ddg_search", return_value=[]):

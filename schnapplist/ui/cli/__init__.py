@@ -42,10 +42,15 @@ def _configure_debug_logging() -> None:
     logger.addHandler(handler)
     logger.propagate = False  # don't bubble up to root logger
 
+    from ...core.tracing import configure_agent_tracing
+
+    configure_agent_tracing(Path("schnapplist-agent.log"))
+
 
 # ---------------------------------------------------------------------------
 # process
 # ---------------------------------------------------------------------------
+
 
 @click.group()
 def main() -> None:
@@ -54,26 +59,30 @@ def main() -> None:
 
 @main.command()
 @click.option(
-    "--photos-dir", "-p",
+    "--photos-dir",
+    "-p",
     required=True,
     type=click.Path(exists=True, file_okay=False, path_type=Path),
     help="Folder containing your item photos.",
 )
 @click.option(
-    "--output-dir", "-o",
+    "--output-dir",
+    "-o",
     default="./output",
     type=click.Path(path_type=Path),
     show_default=True,
     help="Where to save enhanced photos and the report.",
 )
 @click.option(
-    "--single-item", "-s",
+    "--single-item",
+    "-s",
     is_flag=True,
     default=False,
     help="Treat all photos as one item — skips AI grouping.",
 )
 @click.option(
-    "--marketplace", "-m",
+    "--marketplace",
+    "-m",
     default=None,
     type=click.Choice(["kleinanzeigen", "ebay"]),
     help="Override the default marketplace for all items in this report.",
@@ -168,18 +177,18 @@ def process(
         console.print(f"[red]Error:[/red] {exc}")
         sys.exit(1)
 
-    console.print(
-        "\nWhen ready, run [bold]schnapplist post[/bold] to create listings."
-    )
+    console.print("\nWhen ready, run [bold]schnapplist post[/bold] to create listings.")
 
 
 # ---------------------------------------------------------------------------
 # review
 # ---------------------------------------------------------------------------
 
+
 @main.command()
 @click.option(
-    "--output-dir", "-o",
+    "--output-dir",
+    "-o",
     default="./output",
     type=click.Path(path_type=Path),
     show_default=True,
@@ -233,9 +242,11 @@ def _find_fallback_editor() -> str:
 # list
 # ---------------------------------------------------------------------------
 
+
 @main.command("list")
 @click.option(
-    "--output-dir", "-o",
+    "--output-dir",
+    "-o",
     default="./output",
     type=click.Path(path_type=Path),
     show_default=True,
@@ -279,21 +290,25 @@ def list_items(output_dir: Path) -> None:
 # post
 # ---------------------------------------------------------------------------
 
+
 @main.command()
 @click.option(
-    "--output-dir", "-o",
+    "--output-dir",
+    "-o",
     default="./output",
     type=click.Path(path_type=Path),
     show_default=True,
 )
 @click.option(
-    "--item-id", "-i",
+    "--item-id",
+    "-i",
     required=False,
     default=None,
     help="Item ID to post. If omitted, posts all approved items.",
 )
 @click.option(
-    "--marketplace", "-m",
+    "--marketplace",
+    "-m",
     type=click.Choice(["kleinanzeigen", "ebay"]),
     default=None,
     help="Override the marketplace set in the report (default: use report value).",
@@ -352,13 +367,16 @@ def post(
 
     for idx, item in enumerate(targets, 1):
         from ...config import DEFAULT_MARKETPLACE
+
         effective_marketplace = marketplace or item.marketplace or DEFAULT_MARKETPLACE
 
         prefix = f"[dim][{idx}/{total}][/dim] " if total > 1 else ""
-        console.print(Rule(
-            f"{prefix}[bold]{item.name}[/bold]  →  {effective_marketplace}",
-            style="dim",
-        ))
+        console.print(
+            Rule(
+                f"{prefix}[bold]{item.name}[/bold]  →  {effective_marketplace}",
+                style="dim",
+            )
+        )
         _print_item_details(item, effective_marketplace)
 
         result = post_item(item, effective_marketplace, schedule=schedule, dry_run=dry_run)
@@ -404,6 +422,7 @@ def _print_dry_run_summary(summary: dict) -> None:
 # export
 # ---------------------------------------------------------------------------
 
+
 @main.group()
 def export() -> None:
     """Export items to external formats."""
@@ -411,7 +430,8 @@ def export() -> None:
 
 @export.command("ebay")
 @click.option(
-    "--output-dir", "-o",
+    "--output-dir",
+    "-o",
     default="./output",
     type=click.Path(path_type=Path),
     show_default=True,
@@ -461,6 +481,7 @@ def export_ebay(output_dir: Path, run_dir: Path | None, output: Path | None) -> 
 # ---------------------------------------------------------------------------
 # config
 # ---------------------------------------------------------------------------
+
 
 @main.group()
 def config() -> None:

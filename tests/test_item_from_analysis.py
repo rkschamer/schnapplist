@@ -65,12 +65,14 @@ def test_from_analysis_ka_options(tmp_path: Path) -> None:
 
 
 def test_from_analysis_ebay_options(tmp_path: Path) -> None:
-    analysis = _analysis({
-        "ebay_listing_type": "auction",
-        "ebay_duration_days": 7,
-        "ebay_reserve_price": 30.0,
-        "ebay_category_id": "293",
-    })
+    analysis = _analysis(
+        {
+            "ebay_listing_type": "auction",
+            "ebay_duration_days": 7,
+            "ebay_reserve_price": 30.0,
+            "ebay_category_id": "293",
+        }
+    )
     for k in ("ka_category", "ka_shipping", "ka_shipping_methods", "ka_price_type"):
         analysis.pop(k, None)
     item = Item.from_analysis(analysis, [tmp_path / "a.jpg"], [], marketplace="ebay")
@@ -82,18 +84,12 @@ def test_from_analysis_ebay_options(tmp_path: Path) -> None:
 
 
 def test_from_analysis_invalid_condition_falls_back(tmp_path: Path) -> None:
-    item = Item.from_analysis(
-        _analysis({"condition": "not_a_condition"}),
-        [tmp_path / "a.jpg"], []
-    )
+    item = Item.from_analysis(_analysis({"condition": "not_a_condition"}), [tmp_path / "a.jpg"], [])
     assert item.condition == ItemCondition.GOOD
 
 
 def test_from_analysis_invalid_shipping_falls_back(tmp_path: Path) -> None:
-    item = Item.from_analysis(
-        _analysis({"ka_shipping": "invalid"}),
-        [tmp_path / "a.jpg"], []
-    )
+    item = Item.from_analysis(_analysis({"ka_shipping": "invalid"}), [tmp_path / "a.jpg"], [])
     assert item.ka_options is not None
     assert item.ka_options.shipping == KaShipping.VERSAND
 
@@ -104,4 +100,3 @@ def test_from_analysis_description_fallback(tmp_path: Path) -> None:
     analysis["description"] = "Fallback description."
     item = Item.from_analysis(analysis, [tmp_path / "a.jpg"], [])
     assert item.description == "Fallback description."
-

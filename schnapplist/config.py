@@ -18,6 +18,7 @@ load_dotenv()
 
 TOML_USER_PATH = Path(user_config_dir("schnapplist")) / "config.toml"
 
+
 def _find_toml() -> Path | None:
     local = Path.cwd() / "schnapplist.toml"
     if local.exists():
@@ -26,12 +27,14 @@ def _find_toml() -> Path | None:
         return TOML_USER_PATH
     return None
 
+
 def _load_toml() -> dict[str, Any]:
     path = _find_toml()
     if path is None:
         return {}
     with open(path, "rb") as f:
         return tomllib.load(f)
+
 
 _toml = _load_toml()
 _listing = _toml.get("listing", {})

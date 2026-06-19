@@ -29,9 +29,9 @@ class ItemCondition(StrEnum):
 
     def to_ebay_condition(self) -> str:
         return {
-            "new": "1000",       # New
+            "new": "1000",  # New
             "like_new": "1500",  # New other
-            "good": "3000",      # Used
+            "good": "3000",  # Used
             "acceptable": "5000",
             "poor": "7000",
         }[self.value]
@@ -57,36 +57,37 @@ class PriceInfo(BaseModel):
 
 # eBay listing options must be defined before Item references them.
 
+
 class KaShipping(StrEnum):
-    VERSAND  = "versand"
+    VERSAND = "versand"
     ABHOLUNG = "abholung"
 
 
 class KaPriceType(StrEnum):
-    FESTPREIS      = "festpreis"
-    VB             = "vb"             # Verhandlungsbasis
+    FESTPREIS = "festpreis"
+    VB = "vb"  # Verhandlungsbasis
     ZU_VERSCHENKEN = "zu_verschenken"
 
 
 class KleinanzeigenListingOptions(BaseModel):
-    ka_category: str | None = None        # e.g. "Elektronik > PC-Zubehör & Software"
+    ka_category: str | None = None  # e.g. "Elektronik > PC-Zubehör & Software"
     shipping: KaShipping = KaShipping.VERSAND
-    shipping_methods: list[str] = []      # e.g. ["Hermes Päckchen", "DHL Paket 2 kg"]
+    shipping_methods: list[str] = []  # e.g. ["Hermes Päckchen", "DHL Paket 2 kg"]
     price_type: KaPriceType = KaPriceType.FESTPREIS
 
 
 class EbayListingType(StrEnum):
-    AUCTION = "auction"    # Chinese auction (starting bid)
-    FIXED   = "fixed"      # Buy It Now
-    BOTH    = "both"       # Fixed price + Best Offer enabled
+    AUCTION = "auction"  # Chinese auction (starting bid)
+    FIXED = "fixed"  # Buy It Now
+    BOTH = "both"  # Fixed price + Best Offer enabled
 
 
 class EbayListingOptions(BaseModel):
     listing_type: EbayListingType = EbayListingType.FIXED
-    reserve_price: float | None = None      # auction only
-    duration_days: int = 7                     # 1, 3, 5, 7, or 10
+    reserve_price: float | None = None  # auction only
+    duration_days: int = 7  # 1, 3, 5, 7, or 10
     scheduled_start: datetime | None = None
-    ebay_category_id: str | None = None      # numeric eBay DE category ID
+    ebay_category_id: str | None = None  # numeric eBay DE category ID
 
 
 class Item(BaseModel):
@@ -102,7 +103,7 @@ class Item(BaseModel):
     category: str | None = None
     brand: str | None = None
     model: str | None = None
-    marketplace: str | None = None          # "ebay" | "kleinanzeigen"
+    marketplace: str | None = None  # "ebay" | "kleinanzeigen"
     ebay_options: EbayListingOptions | None = None
     ka_options: KleinanzeigenListingOptions | None = None
     confidence: float = 1.0

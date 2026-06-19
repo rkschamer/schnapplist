@@ -24,9 +24,7 @@ def _get_state() -> SessionState:
 
 
 def _nav_sidebar() -> None:
-    with ui.left_drawer(top_corner=True, bottom_corner=True).classes(
-        "bg-gray-50 border-r"
-    ):
+    with ui.left_drawer(top_corner=True, bottom_corner=True).classes("bg-gray-50 border-r"):
         with ui.column().classes("p-4 gap-1"):
             ui.label("Schnapplist").classes("text-lg font-bold text-primary mb-4")
             for label, path, icon in [
@@ -47,6 +45,7 @@ async def page_home(client: Client) -> None:
     await client.connected()
     _nav_sidebar()
     from .pages.home import create
+
     create(_get_state())
 
 
@@ -55,6 +54,7 @@ async def page_process(client: Client) -> None:
     await client.connected()
     _nav_sidebar()
     from .pages.process import create
+
     create(_get_state())
 
 
@@ -63,6 +63,7 @@ async def page_review(client: Client) -> None:
     await client.connected()
     _nav_sidebar()
     from .pages.review import create
+
     create(_get_state())
 
 
@@ -71,6 +72,7 @@ async def page_post(client: Client) -> None:
     await client.connected()
     _nav_sidebar()
     from .pages.post import create
+
     create(_get_state())
 
 

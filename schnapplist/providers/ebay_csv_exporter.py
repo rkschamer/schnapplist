@@ -36,7 +36,9 @@ _COLUMN_SUFFIXES = [
 
 def _columns() -> list[str]:
     from ..config import EBAY_CSV_ACTION_HEADER
+
     return [EBAY_CSV_ACTION_HEADER, *_COLUMN_SUFFIXES]
+
 
 _FORMAT_MAP = {
     EbayListingType.FIXED: "FixedPrice",
@@ -50,8 +52,7 @@ def export_to_csv(items: list[Item], output_path: Path) -> int:
 
     Returns the number of items written (0 if no approved eBay items).
     """
-    rows = [_item_to_row(item) for item in items
-            if item.approved and item.marketplace == "ebay"]
+    rows = [_item_to_row(item) for item in items if item.approved and item.marketplace == "ebay"]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -80,10 +81,10 @@ def _item_to_row(item: Item) -> list[str]:
         item.id,
         category_id,
         item.title_de or item.name,
-        "",                              # UPC
+        "",  # UPC
         price,
         "1",
-        "",                              # Item photo URL
+        "",  # Item photo URL
         item.condition.to_ebay_condition(),
         description,
         fmt,

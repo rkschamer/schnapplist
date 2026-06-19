@@ -40,8 +40,7 @@ def _write_item_file(item: Item, item_path: Path, run_dir: Path) -> None:
     price = item.price_info
     price_str = f"**{price.suggested_price:.2f} {price.currency}**" if price else "_not determined_"
     range_str = (
-        f"(range {price.min_price:.2f}–{price.max_price:.2f} {price.currency})"
-        if price else ""
+        f"(range {price.min_price:.2f}–{price.max_price:.2f} {price.currency})" if price else ""
     )
 
     marketplace = item.marketplace or DEFAULT_MARKETPLACE
@@ -65,17 +64,16 @@ def _write_item_file(item: Item, item_path: Path, run_dir: Path) -> None:
     ]
 
     if item.confidence < AGENT_TARGET_CONFIDENCE:
-        lines.append(
-            f"| **Confidence** | {item.confidence:.2f} ⚠ — {item.confidence_notes} |"
-        )
+        lines.append(f"| **Confidence** | {item.confidence:.2f} ⚠ — {item.confidence_notes} |")
 
     if marketplace == "ebay":
         opts = item.ebay_options
         lt = opts.listing_type.value if opts else EbayListingType.FIXED.value
         dur = opts.duration_days if opts else 7
         reserve = f"{opts.reserve_price:.2f}" if (opts and opts.reserve_price) else "—"
-        scheduled = (opts.scheduled_start if (opts and opts.scheduled_start)
-                     else _next_evening_start())
+        scheduled = (
+            opts.scheduled_start if (opts and opts.scheduled_start) else _next_evening_start()
+        )
         sched_str = scheduled.strftime("%Y-%m-%dT%H:%M:%S")
         category_id = opts.ebay_category_id if opts else None
         lines += [

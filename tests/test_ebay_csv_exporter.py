@@ -117,15 +117,15 @@ def test_export_data_row_columns(tmp_path: Path) -> None:
     lines = out.read_text(encoding="utf-8").splitlines()
     row = _parse_row(lines[5])  # index 5 = first data row (0-based)
     assert row[0] == "Draft"
-    assert row[1] == "abc12345"   # Custom label = item.id
-    assert row[2] == "12345"      # Category ID
+    assert row[1] == "abc12345"  # Custom label = item.id
+    assert row[2] == "12345"  # Category ID
     assert row[3] == "Sony WH-1000XM5 Kopfhörer"  # Title
-    assert row[4] == ""           # UPC empty
-    assert row[5] == "180.00"      # Price
-    assert row[6] == "1"          # Quantity
-    assert row[7] == ""           # Photo URL empty
-    assert row[8] == "3000"       # Condition ID for GOOD
-    assert "<p>" in row[9]        # Description wrapped in <p>
+    assert row[4] == ""  # UPC empty
+    assert row[5] == "180.00"  # Price
+    assert row[6] == "1"  # Quantity
+    assert row[7] == ""  # Photo URL empty
+    assert row[8] == "3000"  # Condition ID for GOOD
+    assert "<p>" in row[9]  # Description wrapped in <p>
     assert row[10] == "FixedPrice"
 
 

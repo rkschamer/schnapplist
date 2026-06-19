@@ -74,7 +74,9 @@ class EbayMarketplace(BaseMarketplace):
         listing_type_xml, extra_xml = _build_listing_type_xml(opts, base_price)
         schedule_xml = _build_schedule_xml(opts)
 
-        _console.print(f"[bold]eBay Trading API[/bold] [dim]({'sandbox' if EBAY_SANDBOX else 'live'})[/dim]")
+        _console.print(
+            f"[bold]eBay Trading API[/bold] [dim]({'sandbox' if EBAY_SANDBOX else 'live'})[/dim]"
+        )
         picture_urls = _upload_photos(item, endpoint)
 
         xml_body = f"""<?xml version="1.0" encoding="utf-8"?>
@@ -133,6 +135,7 @@ class EbayMarketplace(BaseMarketplace):
 # API helpers
 # ---------------------------------------------------------------------------
 
+
 def _api_headers(call_name: str) -> dict[str, str]:
     return {
         "X-EBAY-API-SITEID": "77",  # Germany
@@ -148,6 +151,7 @@ def _api_headers(call_name: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Photo upload via eBay Picture Services (EPS)
 # ---------------------------------------------------------------------------
+
 
 def _upload_photos(item: Item, endpoint: str) -> list[str]:
     """Upload item photos to eBay EPS and return their hosted URLs."""
@@ -181,14 +185,18 @@ def _upload_single_photo(path: Path, endpoint: str) -> str | None:
         image_data = f.read()
 
     body = (
-        f"--{boundary}\r\n"
-        'Content-Disposition: form-data; name="XML Payload"\r\n'
-        "Content-Type: text/xml;charset=utf-8\r\n\r\n"
-        f"{xml_part}\r\n"
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="image"; filename="{path.name}"\r\n'
-        f"Content-Type: {mime_type}\r\n\r\n"
-    ).encode("utf-8") + image_data + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="XML Payload"\r\n'
+            "Content-Type: text/xml;charset=utf-8\r\n\r\n"
+            f"{xml_part}\r\n"
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="image"; filename="{path.name}"\r\n'
+            f"Content-Type: {mime_type}\r\n\r\n"
+        ).encode("utf-8")
+        + image_data
+        + f"\r\n--{boundary}--\r\n".encode("utf-8")
+    )
 
     headers = _api_headers("UploadSiteHostedPictures")
     headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
@@ -214,12 +222,12 @@ def _upload_single_photo(path: Path, endpoint: str) -> str | None:
 # XML helpers
 # ---------------------------------------------------------------------------
 
+
 def _build_listing_type_xml(opts: EbayListingOptions, price: float) -> tuple[str, str]:
     """Return (ListingType element, extra elements) for the given options."""
     if opts.listing_type == EbayListingType.AUCTION:
         reserve = (
-            f"<ReservePrice>{opts.reserve_price:.2f}</ReservePrice>"
-            if opts.reserve_price else ""
+            f"<ReservePrice>{opts.reserve_price:.2f}</ReservePrice>" if opts.reserve_price else ""
         )
         return "<ListingType>Chinese</ListingType>", reserve
     if opts.listing_type == EbayListingType.BOTH:
@@ -239,10 +247,7 @@ def _build_schedule_xml(opts: EbayListingOptions) -> str:
 
 def _xml_escape(text: str) -> str:
     return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     )
 
 

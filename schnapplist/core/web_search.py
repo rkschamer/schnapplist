@@ -7,20 +7,20 @@ import time
 from typing import Any, TypedDict, cast
 
 _SEARCH_RETRIES = 3
-_RETRY_DELAY_S  = 2.0
+_RETRY_DELAY_S = 2.0
 
 
 class SearchResult(TypedDict):
     title: str
-    body:  str
-    href:  str
+    body: str
+    href: str
 
 
 def web_search(query: str, max_results: int = 12) -> list[SearchResult]:
     """Search via DuckDuckGo with retries. Returns list of {title, body, href} dicts."""
     try:
         ddgs_module = importlib.import_module("ddgs")
-        ddgs_class  = ddgs_module.DDGS
+        ddgs_class = ddgs_module.DDGS
     except (ImportError, AttributeError):
         return []
 
@@ -38,8 +38,8 @@ def web_search(query: str, max_results: int = 12) -> list[SearchResult]:
                 normalized.append(
                     {
                         "title": str(raw.get("title", "")),
-                        "body":  str(raw.get("body",  "")),
-                        "href":  str(raw.get("href",  "")),
+                        "body": str(raw.get("body", "")),
+                        "href": str(raw.get("href", "")),
                     }
                 )
             return normalized

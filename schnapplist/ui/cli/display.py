@@ -28,6 +28,7 @@ _MAX_TOOL_LOG = 5
 # State dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ToolLogEntry:
     tool: str
@@ -68,6 +69,7 @@ class RunState:
 # ---------------------------------------------------------------------------
 # State mutation
 # ---------------------------------------------------------------------------
+
 
 def apply_event(state: RunState, event: str, **kwargs: Any) -> None:
     if event == "scan_done":
@@ -126,6 +128,7 @@ def apply_event(state: RunState, event: str, **kwargs: Any) -> None:
 # Render functions
 # ---------------------------------------------------------------------------
 
+
 def _render_header(state: RunState) -> Panel:
     elapsed = time.monotonic() - state.start_time
     elapsed_str = _fmt_elapsed(elapsed)
@@ -145,7 +148,9 @@ def _render_header(state: RunState) -> Panel:
         pct = state.completed_items / state.total_items
         bar_width = 20
         filled = int(bar_width * pct)
-        bar = "[green]" + "█" * filled + "[/green]" + "[dim]" + "░" * (bar_width - filled) + "[/dim]"
+        bar = (
+            "[green]" + "█" * filled + "[/green]" + "[dim]" + "░" * (bar_width - filled) + "[/dim]"
+        )
         overall_text = (
             f"Overall  {bar}  "
             f"[bold]{state.completed_items}/{state.total_items}[/bold]  {elapsed_str}"
@@ -178,7 +183,9 @@ def _render_items(state: RunState) -> Panel:
             if row.low_confidence:
                 icon = "[yellow]⚠[/yellow]"
                 name_cell = Text(row.name, style="bold")
-                price_cell = Text.from_markup(f"[yellow]{row.price}  [dim](conf: {row.confidence:.2f})[/dim]")
+                price_cell = Text.from_markup(
+                    f"[yellow]{row.price}  [dim](conf: {row.confidence:.2f})[/dim]"
+                )
             else:
                 icon = "[green]✓[/green]"
                 name_cell = Text(row.name, style="bold")
@@ -240,6 +247,7 @@ def _render_llm(state: RunState) -> Panel:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _fmt_elapsed(seconds: float) -> str:
     m, s = divmod(int(seconds), 60)
     h, m = divmod(m, 60)
@@ -291,6 +299,7 @@ class _LiveRenderable:
 # ---------------------------------------------------------------------------
 # Callbacks
 # ---------------------------------------------------------------------------
+
 
 class RichLiveCallback:
     """Drives a Rich Live display from ProcessWorkflow events."""

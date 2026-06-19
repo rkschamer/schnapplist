@@ -16,6 +16,7 @@ dependencies = [
     "requests>=2.31.0",
     "platformdirs>=4.0.0",
     "nicegui>=2.0.0",
+    "logfire>=3.0.0",
 ]
 
 [project.scripts]

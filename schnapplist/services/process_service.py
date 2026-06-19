@@ -378,8 +378,7 @@ def run_process(
         api_key = ANTHROPIC_API_KEY
         if not api_key:
             raise ValueError(
-                "ANTHROPIC_API_KEY is not set. "
-                "Add it to a .env file or export it in your shell."
+                "ANTHROPIC_API_KEY is not set. Add it to a .env file or export it in your shell."
             )
         model = llm_model or CLAUDE_MODEL
         client = LLMClient("anthropic", model, api_key=api_key)

@@ -79,7 +79,9 @@ class LLMClient:
 def _normalize_model_name(provider: str, model: str) -> str:
     if provider == "anthropic" and not model.startswith("anthropic/"):
         return f"anthropic/{model}"
-    if provider == "ollama" and not (model.startswith("ollama/") or model.startswith("ollama_chat/")):
+    if provider == "ollama" and not (
+        model.startswith("ollama/") or model.startswith("ollama_chat/")
+    ):
         return f"ollama_chat/{model}"
     return model
 
@@ -91,7 +93,9 @@ def _to_openai_messages(
 
     if system is not None:
         if isinstance(system, list):
-            system_text = "\n\n".join(str(block.get("text", "")) for block in system if block.get("type") == "text")
+            system_text = "\n\n".join(
+                str(block.get("text", "")) for block in system if block.get("type") == "text"
+            )
         else:
             system_text = system
         if system_text:
@@ -121,7 +125,12 @@ def _to_openai_messages(
                 if isinstance(source, dict) and source.get("type") == "base64":
                     media_type = str(source.get("media_type", "image/jpeg"))
                     data = str(source.get("data", ""))
-                    oai_content.append({"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{data}"}})
+                    oai_content.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{media_type};base64,{data}"},
+                        }
+                    )
         oai_messages.append({"role": role, "content": oai_content})
 
     return oai_messages
@@ -138,7 +147,12 @@ def _extract_text_from_response(response: Any) -> str:
     if isinstance(content, list):
         parts: list[str] = []
         for item in content:
-            if isinstance(item, dict) and item.get("type") == "text" or isinstance(item, dict) and "text" in item:
+            if (
+                isinstance(item, dict)
+                and item.get("type") == "text"
+                or isinstance(item, dict)
+                and "text" in item
+            ):
                 parts.append(str(item.get("text", "")))
             else:
                 parts.append(str(item))

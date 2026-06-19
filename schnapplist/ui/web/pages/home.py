@@ -24,6 +24,7 @@ def create(state: SessionState) -> None:
                 ).classes("text-sm text-gray-500")
 
             with ui.card_section():
+
                 @ui.refreshable
                 def file_list() -> None:
                     files = sorted(state.upload_dir.glob("*"))

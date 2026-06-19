@@ -32,15 +32,15 @@ def create(state: SessionState) -> None:
 
         nav_row = ui.row().classes("w-full gap-4 mt-4 hidden")
         with nav_row:
-            ui.button("Review Items", icon="rate_review",
-                      on_click=lambda: ui.navigate.to("/review")).props("color=primary")
-            ui.button("Back", icon="arrow_back",
-                      on_click=lambda: ui.navigate.to("/")).props("flat")
+            ui.button(
+                "Review Items", icon="rate_review", on_click=lambda: ui.navigate.to("/review")
+            ).props("color=primary")
+            ui.button("Back", icon="arrow_back", on_click=lambda: ui.navigate.to("/")).props("flat")
 
         rendered_events: list[str] = []
 
         def _render_events() -> None:
-            new_events = state.progress_events[len(rendered_events):]
+            new_events = state.progress_events[len(rendered_events) :]
             for ev in new_events:
                 rendered_events.append(ev.event)
                 _render_event(ev, events_container)
@@ -55,7 +55,9 @@ def create(state: SessionState) -> None:
                     _event_row(f"Identified {count} item group(s)", "category", "text-blue-500")
                 elif ev.event == "item_start":
                     idx, total = ev.kwargs.get("idx", 0), ev.kwargs.get("total", 0)
-                    _event_row(f"Item {idx} of {total}", "inventory_2", "text-primary font-semibold")
+                    _event_row(
+                        f"Item {idx} of {total}", "inventory_2", "text-primary font-semibold"
+                    )
                 elif ev.event == "item_stage":
                     stage = ev.kwargs.get("stage", "")
                     label = _STAGE_LABELS.get(stage, stage)

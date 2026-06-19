@@ -189,7 +189,8 @@ def run_mcp_posting(item: Item, *, max_steps: int = 80) -> str:
         f"Shipping: {payload.get('shipping', 'versand')}\n"
         + (
             f"Shipping methods to enable: {', '.join(cast(list[str], payload['shipping_methods']))}\n"
-            if payload.get("shipping_methods") else ""
+            if payload.get("shipping_methods")
+            else ""
         )
         + "\nNavigate to https://www.kleinanzeigen.de/p-anzeige-aufgeben.html and complete everything. "
         "At the end, respond with exactly: FINAL_URL: <url>"
@@ -223,6 +224,4 @@ def _resolve_model_name() -> str:
         os.environ["OLLAMA_BASE_URL"] = base_url
         return f"ollama:{OLLAMA_MODEL}"
 
-    raise RuntimeError(
-        "Unsupported llm.provider for MCP mode. Use 'anthropic' or 'ollama'."
-    )
+    raise RuntimeError("Unsupported llm.provider for MCP mode. Use 'anthropic' or 'ollama'.")

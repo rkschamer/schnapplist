@@ -76,18 +76,20 @@ def _group_batch(batch: list[Path], client: LLMClient) -> list[list[int]]:
         content.append(_build_image_block(photo))
         content.append({"type": "text", "text": f"[Photo {i}: {photo.name}]"})
 
-    content.append({
-        "type": "text",
-        "text": (
-            "Group these photos by physical item. Be conservative: photos of the same "
-            "product—even from different angles, showing different sides, or displaying "
-            "individual pieces of a set—belong in ONE group. Only create separate groups "
-            "when photos clearly show completely different, unrelated objects.\n\n"
-            "Reply with ONLY a JSON object — no prose:\n"
-            '{"groups": [[0,1,2],[3,4],[5]]}\n\n'
-            "Every photo index must appear in exactly one group."
-        ),
-    })
+    content.append(
+        {
+            "type": "text",
+            "text": (
+                "Group these photos by physical item. Be conservative: photos of the same "
+                "product—even from different angles, showing different sides, or displaying "
+                "individual pieces of a set—belong in ONE group. Only create separate groups "
+                "when photos clearly show completely different, unrelated objects.\n\n"
+                "Reply with ONLY a JSON object — no prose:\n"
+                '{"groups": [[0,1,2],[3,4],[5]]}\n\n'
+                "Every photo index must appear in exactly one group."
+            ),
+        }
+    )
 
     response = client.messages_create(
         max_tokens=512,
@@ -119,7 +121,9 @@ def group_photos_by_item(photos: list[Path], client: LLMClient) -> list[list[Pat
         return [[photos[0]]]
 
     # Process in batches to stay within context limits, then merge across batches
-    batches: list[list[Path]] = [photos[i : i + GROUP_BATCH_SIZE] for i in range(0, len(photos), GROUP_BATCH_SIZE)]
+    batches: list[list[Path]] = [
+        photos[i : i + GROUP_BATCH_SIZE] for i in range(0, len(photos), GROUP_BATCH_SIZE)
+    ]
 
     all_groups: list[list[Path]] = []
     for batch in batches:
@@ -141,9 +145,7 @@ def group_photos_by_item(photos: list[Path], client: LLMClient) -> list[list[Pat
 _MAX_MERGE_REPRESENTATIVES = 12
 
 
-def _merge_groups_across_batches(
-    groups: list[list[Path]], client: LLMClient
-) -> list[list[Path]]:
+def _merge_groups_across_batches(groups: list[list[Path]], client: LLMClient) -> list[list[Path]]:
     """Use one representative photo per group to see if any groups should merge."""
     if len(groups) > _MAX_MERGE_REPRESENTATIVES:
         # Too many groups to merge reliably in one call — skip the merge pass.
@@ -155,15 +157,17 @@ def _merge_groups_across_batches(
         content.append(_build_image_block(photo))
         content.append({"type": "text", "text": f"[Group {i} representative: {photo.name}]"})
 
-    content.append({
-        "type": "text",
-        "text": (
-            "Each image is a representative photo of a group. Some groups may show the same item.\n"
-            "Return ONLY a JSON object mapping each group index to the canonical group index it belongs to:\n"
-            '{"mapping": [0, 0, 2, 3, 3]}\n'
-            "(index position = original group, value = canonical group to merge into)"
-        ),
-    })
+    content.append(
+        {
+            "type": "text",
+            "text": (
+                "Each image is a representative photo of a group. Some groups may show the same item.\n"
+                "Return ONLY a JSON object mapping each group index to the canonical group index it belongs to:\n"
+                '{"mapping": [0, 0, 2, 3, 3]}\n'
+                "(index position = original group, value = canonical group to merge into)"
+            ),
+        }
+    )
 
     response = client.messages_create(
         max_tokens=256,
@@ -314,10 +318,18 @@ def _get_enhancement_params(source: Path, client: LLMClient) -> JsonDict:
     response = client.messages_create(
         max_tokens=256,
         system=_ENHANCE_SYSTEM,
-        messages=[{"role": "user", "content": [
-            image_block,
-            {"type": "text", "text": "What are the best enhancement parameters for this photo?"},
-        ]}],
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    image_block,
+                    {
+                        "type": "text",
+                        "text": "What are the best enhancement parameters for this photo?",
+                    },
+                ],
+            }
+        ],
     )
     text = response.content[0].text
     start, end = text.find("{"), text.rfind("}") + 1
@@ -391,20 +403,28 @@ def _apply_enhancement(source: Path, params: JsonDict) -> Image.Image:
             img = img.crop((0, (h - new_h) // 2, w, (h - new_h) // 2 + new_h))
 
     if img.width > ENHANCED_IMAGE_MAX_WIDTH:
-        img.thumbnail((ENHANCED_IMAGE_MAX_WIDTH, ENHANCED_IMAGE_MAX_WIDTH), Image.Resampling.LANCZOS)
+        img.thumbnail(
+            (ENHANCED_IMAGE_MAX_WIDTH, ENHANCED_IMAGE_MAX_WIDTH), Image.Resampling.LANCZOS
+        )
     return img
 
 
-def enhance_photo(source: Path, output_dir: Path, client: LLMClient | None = None, output_stem: str | None = None) -> Path:
+def enhance_photo(
+    source: Path, output_dir: Path, client: LLMClient | None = None, output_stem: str | None = None
+) -> Path:
     """Iteratively enhance a photo using an LLM feedback loop. Returns output path."""
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = output_stem if output_stem is not None else f"enhanced_{source.stem}"
     output_path = output_dir / f"{stem}.jpg"
 
-    params = _get_enhancement_params(source, client) if client is not None else dict(_ENHANCE_DEFAULTS)
+    params = (
+        _get_enhancement_params(source, client) if client is not None else dict(_ENHANCE_DEFAULTS)
+    )
 
     for iteration in range(_MAX_ENHANCE_ITERATIONS):
-        _apply_enhancement(source, params).save(output_path, "JPEG", quality=PHOTO_QUALITY, optimize=True)
+        _apply_enhancement(source, params).save(
+            output_path, "JPEG", quality=PHOTO_QUALITY, optimize=True
+        )
 
         if client is None or iteration == _MAX_ENHANCE_ITERATIONS - 1:
             break
