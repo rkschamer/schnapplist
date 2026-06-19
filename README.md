@@ -131,3 +131,31 @@ It works with both providers:
 Uses the eBay Trading API (`AddItem`, site ID 77 — Germany). Needs `EBAY_APP_ID` and `EBAY_AUTH_TOKEN` in `.env`. Set `EBAY_SANDBOX=true` to test before going live.
 
 The LLM suggests listing type (`auction` / `fixed` / `both`), duration, and reserve price. All of that shows up in the Markdown report and can be edited before posting.
+
+## Debugging
+
+Set `SCHNAPPLIST_DEBUG=1` before running `process` to enable detailed agent traces:
+
+```bash
+SCHNAPPLIST_DEBUG=1 uv run schnapplist process --photos-dir ./photos
+```
+
+Two log files are written to the current directory:
+
+| File | Contents |
+|---|---|
+| `schnapplist-debug.log` | Structured DEBUG messages — tool calls, token counts, LLM latency per turn |
+| `schnapplist-agent.log` | Full agent trace — turn-by-turn timeline plus the complete prompts, model responses, tool arguments, and tool return values |
+
+The agent log has two sections per run. The timeline (from logfire) looks like:
+
+```
+11:17:41.150 agent run
+11:17:41.156   chat qwen3.6:35b
+11:17:45.486     running tool: analyze_photos
+11:17:49.644   chat qwen3.6:35b
+11:17:55.896     running tool: web_search
+...
+```
+
+Followed by `=== span name ===` blocks with the full JSON content of each span — what the model was sent (`gen_ai.input.messages`), what it replied (`gen_ai.output.messages`), and what each tool received and returned.
